@@ -84,7 +84,7 @@ DROPDOWN_OPTIONS = {
     "التمرينات الرياضية": ["تم", "لم يتم"],
     "قسط من النوم والراحة": ["تم", "لم يتم"],
     "المتابعة الدورية للحمل": ["تم", "لم يتم"],
-    "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": ["تم", "لم يتم"],
+    "التحذير منناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": ["تم", "لم يتم"],
     "المتاعب البسيطة في الشهور الأولى": ["تم", "لم يتم"],
     "المتاعب في الشهور الأخيرة": ["تم", "لم يتم"],
     "علامات الخطر أثناء الحمل": ["تم", "لم يتم"],
@@ -193,10 +193,13 @@ YES_NO_CHECKBOX_FIELDS = [
 
 # ==================== دوال المساعدة ====================
 def clean_digits(val, max_len=None):
+    """تنظيف النص وإرجاع أرقام فقط في صيغة نصية لمنع الترميز العلمي"""
     if not val:
         return ""
     digits = "".join(filter(str.isdigit, str(val)))
-    return digits[:max_len] if max_len else digits
+    if max_len:
+        digits = digits[:max_len]
+    return digits
 
 def parse_national_id(nat_id):
     clean_id = clean_digits(nat_id, 14)
@@ -233,36 +236,50 @@ def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
         except Exception as e:
             print(f"Fetch Error: {e}")
 
-def voice_input_component(key_name):
-    """إدخال صوتي تفاعلي محلي مدمج"""
-    st.markdown("##### 🎙️ إدخال صوتي سريع")
-    html_code = f"""
-    <script>
-    function startDictation_{key_name}() {{
-        if (window.hasOwnProperty('webkitSpeechRecognition')) {{
-            var recognition = new webkitSpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = "ar-EG";
-            recognition.start();
-            recognition.onresult = function(e) {{
-                var text = e.results[0][0].transcript;
-                document.getElementById('speech_out_{key_name}').value = text;
-                recognition.stop();
-            }};
-            recognition.onerror = function(e) {{ recognition.stop(); }}
-        }} else {{
-            alert("خاصية التعرف على الصوت غير مدعومة في جهازك/متصفحك الحالي.");
+def voice_input_field(label, key_name):
+    """حقل مدخلات نصية مدمج معه زر إدخال صوتي مباشر"""
+    col_input, col_voice = st.columns([4, 1])
+    with col_voice:
+        st.write("") 
+        st.write("") 
+        html_code = f"""
+        <script>
+        function startDictation_{key_name}() {{
+            if (window.hasOwnProperty('webkitSpeechRecognition')) {{
+                var recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = "ar-EG";
+                recognition.start();
+                recognition.onresult = function(e) {{
+                    var text = e.results[0][0].transcript;
+                    var targetInput = window.parent.document.querySelector('input[data-testid="stTextInput"][aria-label="{label}"]');
+                    if(targetInput) {{
+                        targetInput.value = text;
+                        targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    }}
+                    recognition.stop();
+                }};
+                recognition.onerror = function(e) {{ recognition.stop(); }}
+            }} else {{
+                alert("خاصية التعرف على الصوت غير مدعومة في جهازك/متصفحك الحالي.");
+            }}
         }}
-    }}
-    </script>
-    <div style="display:flex; gap:10px; align-items:center;">
-        <button type="button" onclick="startDictation_{key_name}()" style="background:#4C1D95; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">🎤 ابدأ التحدث</button>
-        <input type="text" id="speech_out_{key_name}" placeholder="السرعة والنص المنطوق سيظهر هنا..." style="width:100%; padding:6px; border:1px solid #ccc; border-radius:6px;">
-    </div>
-    """
-    st.components.v1.html(html_code, height=45)
-    return st.text_input(f"تأكيد النص الصوتي المكتوب ({key_name}):", key=f"voice_confirm_{key_name}")
+        </script>
+        <button type="button" onclick="startDictation_{key_name}()" style="background:#4C1D95; color:white; border:none; padding:8px 10px; border-radius:6px; cursor:pointer; width:100%;">🎤 صوتي</button>
+        """
+        st.components.v1.html(html_code, height=45)
+
+    with col_input:
+        val = st.text_input(label, key=key_name)
+    return val
+
+def clear_form_state(prefix):
+    """تفريغ الحقول تلقائياً بعد الحفظ"""
+    cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
+    for col in cols:
+        st.session_state[f"{prefix}_{col}"] = ""
+    st.session_state[f"{prefix}_last_fetched_id"] = ""
 
 # ==================== تسجيل الدخول ====================
 if "logged_in" not in st.session_state:
@@ -274,19 +291,21 @@ if not st.session_state.logged_in:
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        username_input = st.text_input("اسم المستخدم (Username)")
+        # 1. قائمة منسدلة لاختيار اسم المستخدم
+        user_list = list(DEFAULT_USERS.keys())
+        selected_username = st.selectbox("اختر اسم المستخدم (Username)", user_list, format_func=lambda x: f"{x} ({DEFAULT_USERS[x]['name']})")
         password_input = st.text_input("كلمة المرور (Password)", type="password")
 
         if st.button("تسجيل الدخول", use_container_width=True):
-            if username_input in DEFAULT_USERS and DEFAULT_USERS[username_input]["pass"] == password_input:
+            if DEFAULT_USERS[selected_username]["pass"] == password_input:
                 st.session_state.logged_in = True
-                st.session_state.username = username_input
-                st.session_state.name = DEFAULT_USERS[username_input]["name"]
-                st.session_state.role = DEFAULT_USERS[username_input]["role"]
+                st.session_state.username = selected_username
+                st.session_state.name = DEFAULT_USERS[selected_username]["name"]
+                st.session_state.role = DEFAULT_USERS[selected_username]["role"]
                 st.success(f"مرحباً بكِ {st.session_state.name} ✨")
                 st.rerun()
             else:
-                st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
+                st.error("كلمة المرور غير صحيحة!")
     st.stop()
 
 # ==================== القائمة الجانبية ====================
@@ -313,8 +332,8 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ الزيارة" else ""
 
-    # استدعاء أوتوماتيكي فوري
-    raw_id = st.text_input("الرقم القومى للزوجة", key="p_الرقم القومى للزوجة_input")
+    # حقل الرقم القومي مع إدخال صوتي
+    raw_id = voice_input_field("الرقم القومى للزوجة", "p_الرقم القومى للزوجة_input")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم القومى للزوجة"] = clean_p_id
@@ -323,10 +342,6 @@ if menu == "سجل الحوامل":
             if b_date: st.session_state["p_تاريخ الميلاد"] = b_date
             if age: st.session_state["p_السن"] = age
             fetch_auto_data_from_supabase("pregnant_records", "الرقم القومى للزوجة", clean_p_id, "p")
-
-    # الصوت
-    v_txt = voice_input_component("p_notes")
-    if v_txt: st.info(f"النص الملتقط: {v_txt}")
 
     for col_name in PREGNANT_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للزوجة"]:
@@ -342,19 +357,21 @@ if menu == "سجل الحوامل":
             )
         else:
             if col_name == "الرقم القومى للزوج":
-                raw_husband_id = st.text_input(col_name, key=f"p_{col_name}_raw")
+                raw_husband_id = voice_input_field(col_name, f"p_{col_name}_raw")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
                     hb_date, _ = parse_national_id(clean_h_id)
                     if hb_date: st.session_state["p_تاريخ ميلاد الزوج"] = hb_date
             elif col_name == "رقم الموبايل":
-                raw_mob = st.text_input(col_name, key=f"p_{col_name}_raw")
+                raw_mob = voice_input_field(col_name, f"p_{col_name}_raw")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
             elif col_name in ["تاريخ الميلاد", "السن", "تاريخ ميلاد الزوج"]:
                 st.text_input(f"{col_name} [تلقائي]", key=f"p_{col_name}")
             else:
-                st.text_input(col_name, key=f"p_{col_name}")
+                # 2. إدخال صوتي لجميع الحقول غير المنسدلة
+                val_voice = voice_input_field(col_name, f"p_voice_{col_name}")
+                st.session_state[f"p_{col_name}"] = val_voice
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
         final_p_data = {
@@ -366,6 +383,9 @@ if menu == "سجل الحوامل":
         try:
             supabase.table("pregnant_records").insert(final_p_data).execute()
             st.success("تم حفظ بيانات الحامل في Supabase بنجاح! ✨")
+            # 3. تفريغ الحقول أوتوماتيكياً
+            clear_form_state("p")
+            st.rerun()
         except Exception as e:
             st.error(f"خطأ أثناء الحفظ: {e}")
 
@@ -377,7 +397,7 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ الزيارة", "تاريخ اول زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", key="c_الرقم القومى للام_input")
+    raw_nat_id_mom = voice_input_field("الرقم القومى للام (اختياري)", "c_الرقم القومى للام_input")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم القومى للام"] = clean_c_id
@@ -385,9 +405,6 @@ elif menu == "سجل الأطفال":
             b_mom, _ = parse_national_id(clean_c_id)
             if b_mom: st.session_state["c_تاريخ ميلاد الام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم القومى للام", clean_c_id, "c")
-
-    v_c_txt = voice_input_component("c_notes")
-    if v_c_txt: st.info(f"النص الملتقط: {v_c_txt}")
 
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
@@ -425,10 +442,10 @@ elif menu == "سجل الأطفال":
             )
         else:
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
-                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
+                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم الموبايل للام", "رقم الموبايل للاب"]:
-                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
+                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name == "تاريخ الميلاد للطفل":
                 def_date = datetime.date.today()
@@ -445,7 +462,9 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر الحالى للطفل (شهور)"] = age_str
                     st.session_state["c_العمر الرحمى للطفل (أسابيع)"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                st.text_input(col_name, key=f"c_{col_name}")
+                # 2. إدخال صوتي لجميع الحقول النصية
+                val_voice = voice_input_field(col_name, f"c_voice_{col_name}")
+                st.session_state[f"c_{col_name}"] = val_voice
 
     if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
         final_c_data = {
@@ -457,6 +476,9 @@ elif menu == "سجل الأطفال":
         try:
             supabase.table("children_records").insert(final_c_data).execute()
             st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
+            # 3. تفريغ الحقول أوتوماتيكياً
+            clear_form_state("c")
+            st.rerun()
         except Exception as e:
             st.error(f"خطأ أثناء الحفظ: {e}")
 
@@ -470,11 +492,15 @@ elif menu == "استعراض البيانات والداشبورد":
     try:
         res = supabase.table(db_table_name).select("*").execute()
         df_view = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+        
+        # 4. منع الترقيم العلمي (Scientific Notation) للأرقام القومية
+        for col in df_view.columns:
+            if "الرقم القومى" in col or "رقم الموبايل" in col:
+                df_view[col] = df_view[col].astype(str).apply(lambda x: clean_digits(x))
     except Exception as e:
         st.error(f"خطأ في جلب البيانات من Supabase: {e}")
         df_view = pd.DataFrame()
 
-    filtered_df = df_view.copy()
     if not df_view.empty:
         st.markdown(f"### 📈 إجمالي الحالات المسجلة: {len(df_view)}")
         st.dataframe(df_view, use_container_width=True)
@@ -500,15 +526,19 @@ elif menu == "استيراد البيانات (Excel/CSV)":
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".csv"):
-                df_upload = pd.read_csv(uploaded_file)
+                df_upload = pd.read_csv(uploaded_file, dtype=str)
             else:
-                df_upload = pd.read_excel(uploaded_file)
+                df_upload = pd.read_excel(uploaded_file, dtype=str)
+
+            # معالجة الأرقام القومية لمنع صيغ Scientific Notation
+            for col in df_upload.columns:
+                if "الرقم القومى" in col or "رقم الموبايل" in col:
+                    df_upload[col] = df_upload[col].astype(str).apply(lambda x: clean_digits(x))
 
             st.markdown("### 🔍 معاينة البيانات المراد استيرادها:")
             st.dataframe(df_upload.head())
 
             if st.button("🚀 بدء رفع واستيراد البيانات إلى Supabase", use_container_width=True):
-                # استبدال القيم الفارغة بوصلات فارغة
                 records_to_insert = df_upload.fillna("").to_dict(orient="records")
                 supabase.table(table_db_name).insert(records_to_insert).execute()
                 st.success(f"تم رفع واستيراد {len(records_to_insert)} سجل بنجاح إلى {target_table}! ✨")
