@@ -62,30 +62,29 @@ footer {visibility: hidden;}
     font-size: 18px;
     font-weight: bold;
 }
+iframe {
+    margin-top: 25px;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 
-# ==================== مكون الإدخال الصوتي ====================
-def voice_input_button(key_id, label="🎙️ إدخال صوتي"):
+# ==================== مكون الإدخال الصوتي المتكامل ====================
+def voice_input_button(key_id):
     html_code = f"""
-    <div style="margin-bottom: 10px;">
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
         <button id="btn_{key_id}" onclick="startDictation('{key_id}')" style="
             background-color: #BE185D;
             color: white;
             border: none;
-            padding: 6px 14px;
-            border-radius: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;">
-            {label}
+            font-size: 16px;
+            font-weight: bold;">
+            🎙️
         </button>
-        <span id="status_{key_id}" style="margin-right: 10px; color: #701A75; font-size: 13px; font-weight: bold;"></span>
     </div>
 
     <script>
@@ -97,37 +96,43 @@ def voice_input_button(key_id, label="🎙️ إدخال صوتي"):
             recognition.interimResults = false;
             recognition.lang = "ar-EG";
 
-            var statusElem = document.getElementById('status_' + keyId);
-            statusElem.innerText = "جاري الاستماع... 🔴";
-
             recognition.start();
 
             recognition.onresult = function(e) {{
                 var resultText = e.results[0][0].transcript;
-                statusElem.innerText = "تم الالتقاط: " + resultText;
-                
-                window.parent.postMessage({{
-                    type: 'streamlit:setComponentValue',
-                    value: resultText
-                }}, '*');
+                Streamlit.setComponentValue(resultText);
             }};
 
             recognition.onerror = function(e) {{
-                statusElem.innerText = "خطأ في التعرف على الصوت";
-            }};
-
-            recognition.onend = function() {{
-                if (statusElem.innerText === "جاري الاستماع... 🔴") {{
-                    statusElem.innerText = "";
-                }}
+                alert("خطأ في استقبال الصوت");
             }};
         }} else {{
-            alert("المتصفح لا يدعم الخاصية الصوتية");
+            alert("المتصفح لا يدعم التعرف على الصوت");
         }}
     }}
     </script>
     """
-    return components.html(html_code, height=45)
+    # استدعاء Mcomponent مع تعيين القيمة المنطوقة
+    val = components.html(html_code, height=45)
+    return val
+
+
+def voice_text_field(label, state_key, placeholder="", is_disabled=False):
+    col_btn, col_input = st.columns([1, 8])
+    with col_btn:
+        audio_val = voice_input_button(state_key)
+        if audio_val:
+            st.session_state[state_key] = str(audio_val)
+    with col_input:
+        val = st.text_input(
+            label,
+            value=st.session_state.get(state_key, ""),
+            key=f"input_{state_key}",
+            placeholder=placeholder,
+            disabled=is_disabled,
+        )
+        st.session_state[state_key] = val
+    return val
 
 
 # ==================== الثوابت وإعدادات البيانات ====================
@@ -476,7 +481,6 @@ def parse_national_id(nat_id):
     return "", ""
 
 
-# ==================== دالة التطور الحركي بناءً على الوزن والطول ====================
 def calculate_motor_development(
     age_str, weight_birth, length_birth, weight_current, length_current
 ):
@@ -500,7 +504,6 @@ def calculate_motor_development(
                 "".join(filter(lambda x: x.isdigit() or x == ".", age_str)) or 1
             )
 
-        # معدل زيادة الوزن المتوقع شهرياً حسب العمر (معايير منظمة الصحة العالمية)
         if age_months <= 3:
             expected_w_gain = age_months * 0.8
             expected_l_gain = age_months * 3.5
@@ -700,31 +703,27 @@ elif menu == "سجل الحوامل":
             form_data[col_name] = chosen_choice
             st.session_state[f"p_{col_name}"] = chosen_choice
         else:
-            voice_input_button(f"p_btn_{col_name}")
-
             if col_name == "الرقم القومى":
-                raw_val = st.text_input(col_name, key=f"p_{col_name}")
-                cleaned_val = clean_digits(raw_val, 14)
+                val = voice_text_field(col_name, f"p_{col_name}")
+                cleaned_val = clean_digits(val, 14)
                 form_data[col_name] = cleaned_val
                 if len(cleaned_val) == 14:
                     _, calc_age = parse_national_id(cleaned_val)
                     if calc_age:
                         st.session_state["p_العمر الحالى"] = calc_age
             elif col_name == "رقم الموبايل":
-                raw_val = st.text_input(col_name, key=f"p_{col_name}")
-                cleaned_val = clean_digits(raw_val, 11)
-                form_data[col_name] = cleaned_val
+                val = voice_text_field(col_name, f"p_{col_name}")
+                form_data[col_name] = clean_digits(val, 11)
             elif col_name == "العمر الحالى":
-                form_data[col_name] = st.text_input(
-                    f"{col_name} [محسوب تلقائياً من الرقم القومي]",
-                    key=f"p_{col_name}",
+                form_data[col_name] = voice_text_field(
+                    f"{col_name} [محسوب تلقائياً]", f"p_{col_name}"
                 )
             elif col_name == "التاريخ الزيارة":
-                form_data[col_name] = st.text_input(
-                    f"{col_name} [تاريخ اليوم التلقائي]", key=f"p_{col_name}"
+                form_data[col_name] = voice_text_field(
+                    f"{col_name} [تلقائي]", f"p_{col_name}"
                 )
             else:
-                form_data[col_name] = st.text_input(col_name, key=f"p_{col_name}")
+                form_data[col_name] = voice_text_field(col_name, f"p_{col_name}")
 
     if st.button("💾 حفظ بيانات الحامل", use_container_width=True):
         final_form_data = {}
@@ -776,20 +775,16 @@ elif menu == "سجل الأطفال":
             else:
                 st.session_state[f"c_{col}"] = ""
 
-    voice_input_button("c_btn_الرقم القومى للام")
-    raw_nat_id_mom = st.text_input(
-        "الرقم القومى للام (اختياري)", key="c_الرقم القومى للام_input"
+    nat_id_mom_input = voice_text_field(
+        "الرقم القومى للام (اختياري)", "c_الرقم القومى للام"
     )
-    nat_id_mom_input = clean_digits(raw_nat_id_mom, 14)
-    if nat_id_mom_input:
-        st.session_state["c_الرقم القومى للام"] = nat_id_mom_input
+    nat_id_mom_input = clean_digits(nat_id_mom_input, 14)
 
     if len(nat_id_mom_input) == 14:
         b_date_mom, _ = parse_national_id(nat_id_mom_input)
         if b_date_mom and not st.session_state.get("c_تاريخ ميلاد الام"):
             st.session_state["c_تاريخ ميلاد الام"] = b_date_mom
 
-    if len(nat_id_mom_input) == 14:
         if st.button("🔍 استرجاع بيانات الأسرة المسجلة مسبقاً"):
             found_data = get_existing_data(
                 nat_id_mom_input, "سجل المشورة للاطفال", "الرقم القومى للام"
@@ -804,7 +799,7 @@ elif menu == "سجل الأطفال":
                     st.session_state[f"c_{c_name}"] = str(val)
             st.rerun()
 
-    # تحديث تلقائي مستمر للنمو والتطور الحركي
+    # تحديث تلقائي للنمو والتطور الحركي
     calculated_motor = calculate_motor_development(
         st.session_state.get("c_العمر الحالى للطفل (شهور)", ""),
         st.session_state.get("c_وزن الطفل عند الولادة", ""),
@@ -872,7 +867,6 @@ elif menu == "سجل الأطفال":
 
         elif col_name in DROPDOWN_OPTIONS:
             options = DROPDOWN_OPTIONS[col_name]
-
             if col_name == "موعد الزيارة":
                 auto_visit_choice = VISIT_SCHEDULE_OPTIONS[0]
                 try:
@@ -933,18 +927,16 @@ elif menu == "سجل الأطفال":
             st.session_state[f"c_{col_name}"] = chosen_choice
 
         else:
-            voice_input_button(f"c_btn_{col_name}")
-
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
-                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
-                st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
+                val = voice_text_field(col_name, f"c_{col_name}")
+                st.session_state[f"c_{col_name}"] = clean_digits(val, 14)
             elif col_name in ["رقم الموبايل للام", "رقم الموبايل للاب"]:
-                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
-                st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
+                val = voice_text_field(col_name, f"c_{col_name}")
+                st.session_state[f"c_{col_name}"] = clean_digits(val, 11)
             elif col_name == "تاريخ ميلاد الام":
-                st.text_input(
-                    f"{col_name} [يتولد تلقائياً إذا أُدخل الرقم القومي للأم]",
-                    key=f"c_{col_name}",
+                voice_text_field(
+                    f"{col_name} [تلقائي عند إضافة الرقم القومي]",
+                    f"c_{col_name}",
                 )
 
             elif col_name == "تاريخ الميلاد للطفل":
@@ -991,19 +983,18 @@ elif menu == "سجل الأطفال":
                     pass
 
             elif col_name == "العمر الحالى للطفل (شهور)":
-                st.text_input(f"{col_name} [محسوب تلقائياً]", key=f"c_{col_name}")
+                voice_text_field(f"{col_name} [تلقائي]", f"c_{col_name}")
 
             elif col_name == "العمر الرحمى للطفل (أسابيع)":
-                st.text_input(
-                    f"{col_name} [محسوب بدقة بناءً على تاريخ الميلاد]",
-                    key=f"c_{col_name}",
+                voice_text_field(
+                    f"{col_name} [محسوب تلقائياً]", f"c_{col_name}"
                 )
 
             elif col_name == "وزن الطفل عند الولادة":
-                st.text_input(col_name, key=f"c_{col_name}")
+                voice_text_field(col_name, f"c_{col_name}")
 
             elif col_name == "طول الطفل عند الولادة":
-                st.text_input(col_name, key=f"c_{col_name}")
+                voice_text_field(col_name, f"c_{col_name}")
                 try:
                     w_val = st.session_state.get("c_وزن الطفل عند الولادة", "3.0")
                     l_val = st.session_state.get("c_طول الطفل عند الولادة", "50.0")
@@ -1042,9 +1033,8 @@ elif menu == "سجل الأطفال":
                 except Exception:
                     pass
 
-                st.text_input(
-                    f"{col_name} [محسوب تلقائياً من بيانات الولادة، الحالي، وعمر الطفل]",
-                    key=f"c_{col_name}",
+                voice_text_field(
+                    f"{col_name} [محسوب تلقائياً]", f"c_{col_name}"
                 )
 
             elif col_name == "تخطيط الزيارة القادمة":
@@ -1078,10 +1068,10 @@ elif menu == "سجل الأطفال":
                 except Exception:
                     pass
 
-                st.text_input(f"{col_name} [محسوب تلقائياً]", key=f"c_{col_name}")
+                voice_text_field(f"{col_name} [تلقائي]", f"c_{col_name}")
 
             else:
-                st.text_input(col_name, key=f"c_{col_name}")
+                voice_text_field(col_name, f"c_{col_name}")
 
     if st.button("💾 حفظ بيانات الطفل", use_container_width=True):
         final_child_data = {}
