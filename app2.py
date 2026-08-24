@@ -18,6 +18,26 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# كود JavaScript لتمكين التنقل بزر Enter بين كافة الحقول
+enter_navigation_js = """
+<script>
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        const target = event.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+            event.preventDefault();
+            const formElements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), button:not([disabled])'));
+            const index = formElements.indexOf(target);
+            if (index > -1 && index + 1 < formElements.length) {
+                formElements[index + 1].focus();
+            }
+        }
+    }
+});
+</script>
+"""
+st.components.v1.html(enter_navigation_js, height=0, width=0)
+
 custom_css = """
 <style>
 .main .block-container {
@@ -212,7 +232,6 @@ YES_NO_CHECKBOX_FIELDS = [
 
 # ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
-    """حساب مقاس رأس الطفل عند الولادة تلقائياً"""
     try:
         w = float(weight_kg)
         l = float(length_cm)
@@ -224,7 +243,6 @@ def calculate_birth_head_circumference(weight_kg, length_cm):
     return ""
 
 def calculate_current_head_circumference(age_months_val, birth_w, birth_l, current_w, current_l):
-    """حساب محيط رأس الطفل الحالي (سم) تلقائياً"""
     try:
         age_m = 0.0
         if isinstance(age_months_val, str):
@@ -260,7 +278,6 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
     return ""
 
 def get_best_visit_schedule(age_months_val):
-    """تحديد أفضل موعد زيارة من القائمة المنسدلة بناءً على عمر الطفل"""
     try:
         if isinstance(age_months_val, str):
             clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
@@ -288,7 +305,6 @@ def get_best_visit_schedule(age_months_val):
         return VISIT_SCHEDULE_OPTIONS[0]
 
 def calculate_next_visit_date(current_visit_date_str, current_schedule_option):
-    """حساب تاريخ الزيارة القادمة بالانتقال إلى الموعد التالي وإضافته لتاريخ الزيارة الحالي"""
     try:
         if not current_visit_date_str or current_schedule_option not in VISIT_SCHEDULE_OPTIONS:
             return ""
@@ -311,7 +327,7 @@ def calculate_next_visit_date(current_visit_date_str, current_schedule_option):
     except Exception:
         return ""
 
-# ==================== دوال المساعدة ====================
+# ==================== دوال المساعدة وتنسيق النصوص ====================
 def clean_digits(val, max_len=None):
     if not val:
         return ""
@@ -319,6 +335,13 @@ def clean_digits(val, max_len=None):
     if max_len:
         digits = digits[:max_len]
     return digits
+
+def format_text_for_excel(val):
+    """إضافة تنسيق نصي صريح للأرقام القومية والموبايل لضمان حفظها كاملة في Excel"""
+    if not val:
+        return ""
+    clean_val = str(val).strip()
+    return f"'{clean_val}"
 
 def parse_national_id(nat_id):
     clean_id = clean_digits(nat_id, 14)
@@ -348,7 +371,7 @@ def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
                 cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
                 for col in cols:
                     if col in latest_data and latest_data[col]:
-                        st.session_state[f"{prefix}_{col}"] = str(latest_data[col])
+                        st.session_state[f"{prefix}_{col}"] = str(latest_data[col]).replace("'", "")
                 st.session_state[f"{prefix}_last_fetched_id"] = clean_id
                 st.toast("⚡ تم استدعاء بيانات الحساب المسجل تلقائياً من Supabase!", icon="✨")
         except Exception as e:
@@ -487,12 +510,18 @@ if menu == "سجل الحوامل":
                 st.session_state[f"p_{col_name}"] = val_voice
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
-        final_p_data = {
-            col: (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if col == "تاريخ التسجيل"
-                  else (st.session_state.name if col == "اسم المستخدم"
-                        else st.session_state.get(f"p_{col}", "")))
-            for col in PREGNANT_COLUMNS
-        }
+        final_p_data = {}
+        for col in PREGNANT_COLUMNS:
+            if col == "تاريخ التسجيل":
+                final_p_data[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            elif col == "اسم المستخدم":
+                final_p_data[col] = st.session_state.name
+            else:
+                val = st.session_state.get(f"p_{col}", "")
+                if "الرقم القومى" in col or "رقم الموبايل" in col:
+                    val = format_text_for_excel(val)
+                final_p_data[col] = val
+
         try:
             supabase.table("pregnant_records").insert(final_p_data).execute()
             st.success("تم حفظ بيانات الحامل في Supabase بنجاح! ✨")
@@ -627,12 +656,18 @@ elif menu == "سجل الأطفال":
                 st.session_state[f"c_{col_name}"] = val_voice
 
     if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
-        final_c_data = {
-            col: (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if col == "تاريخ التسجيل"
-                  else (st.session_state.name if col == "اسم المستخدم"
-                        else st.session_state.get(f"c_{col}", "")))
-            for col in CHILD_COLUMNS
-        }
+        final_c_data = {}
+        for col in CHILD_COLUMNS:
+            if col == "تاريخ التسجيل":
+                final_c_data[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            elif col == "اسم المستخدم":
+                final_c_data[col] = st.session_state.name
+            else:
+                val = st.session_state.get(f"c_{col}", "")
+                if "الرقم القومى" in col or "رقم الموبايل" in col:
+                    val = format_text_for_excel(val)
+                final_c_data[col] = val
+
         try:
             supabase.table("children_records").insert(final_c_data).execute()
             st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
@@ -651,10 +686,12 @@ elif menu == "استعراض البيانات والداشبورد":
     try:
         res = supabase.table(db_table_name).select("*").execute()
         df_view = pd.DataFrame(res.data) if res.data else pd.DataFrame()
-        
+
+        # ضبط المحاذاة والتنسيق النصي الصريح لتصدير Excel/CSV
         for col in df_view.columns:
             if "الرقم القومى" in col or "رقم الموبايل" in col:
-                df_view[col] = df_view[col].astype(str).apply(lambda x: clean_digits(x))
+                df_view[col] = df_view[col].astype(str).apply(lambda x: clean_digits(x)).apply(lambda x: f"\t{x}" if x else "")
+
     except Exception as e:
         st.error(f"خطأ في جلب البيانات من Supabase: {e}")
         df_view = pd.DataFrame()
@@ -663,7 +700,7 @@ elif menu == "استعراض البيانات والداشبورد":
         st.markdown(f"### 📈 إجمالي الحالات المسجلة: {len(df_view)}")
         st.dataframe(df_view, use_container_width=True)
         
-        csv_data = df_view.to_csv(index=False).encode('utf-8-sig')
+        csv_data = df_view.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
             label="📥 تصدير البيانات المعروضة (CSV / Excel)",
             data=csv_data,
@@ -690,7 +727,7 @@ elif menu == "استيراد البيانات (Excel/CSV)":
 
             for col in df_upload.columns:
                 if "الرقم القومى" in col or "رقم الموبايل" in col:
-                    df_upload[col] = df_upload[col].astype(str).apply(lambda x: clean_digits(x))
+                    df_upload[col] = df_upload[col].astype(str).apply(lambda x: clean_digits(x)).apply(format_text_for_excel)
 
             st.markdown("### 🔍 معاينة البيانات المراد استيرادها:")
             st.dataframe(df_upload.head())
