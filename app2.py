@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 import pandas as pd
 import streamlit as st
@@ -136,7 +137,7 @@ DROPDOWN_OPTIONS = {
     "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة": ["تم التوعيه", "لم يتم التوعيه"],
     "إعطاء الجرعة اليومية من فيتامين د": ["يوجد"],
     "كيفية رعاية السرة والإهتمام بنظافة الطفل": ["تم", "لم يتم"],
-    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النمو": ["تم", "لم يتم"],
+    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النوم": ["تم", "لم يتم"],
     "أهمية الإلتزام بتطعيمات الطفل": ["تم", "لم يتم"],
     "التغذية الصحية للأم المرضعة": ["تم", "لم يتم"],
     "كيفية التعرف على علامات الخطورة": ["تم", "لم يتم"],
@@ -191,9 +192,61 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر الاحالة(عيادة التطعيمات)", "مصدر الاحالة(نصيحة)"
 ]
 
+# ==================== دوال الحسابات والنمو ====================
+def calculate_birth_head_circumference(weight_kg, length_cm):
+    """دالة حساب مقاس رأس الطفل عند الولادة بناءً على الوزن والطول عند الولادة"""
+    try:
+        w = float(weight_kg)
+        l = float(length_cm)
+        if w > 0 and l > 0:
+            # صيغة تقديرية قائمة على منحنيات القياسات الأنثروبومترية
+            head_circ = (l / 2.0) + 9.5 + ((w - 3.3) * 0.8)
+            return str(round(head_circ, 1))
+    except (ValueError, TypeError):
+        pass
+    return ""
+
+def calculate_current_head_circumference(age_months_val, birth_w, birth_l, current_w, current_l):
+    """دالة حساب محيط رأس الطفل الحالي (سم) اعتماداً على العمر والتطور النموذجي للحجم والوزن والطول"""
+    try:
+        # استخراج العمر بالشهور
+        age_m = 0.0
+        if isinstance(age_months_val, str):
+            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
+            if clean_str:
+                age_m = float(clean_str)
+                if "أسبوع" in age_months_val:
+                    age_m = age_m / 4.33
+                elif "يوم" in age_months_val:
+                    age_m = age_m / 30.44
+        else:
+            age_m = float(age_months_val)
+
+        base_hc = float(calculate_birth_head_circumference(birth_w, birth_l)) if birth_w and birth_l else 34.5
+
+        # حساب معدل الزيادة المتوقعة بحسب الفئة العمرية (نمو الرأس الفسيولوجي)
+        if age_m <= 3:
+            growth = age_m * 2.0
+        elif age_m <= 6:
+            growth = (3 * 2.0) + ((age_m - 3) * 1.0)
+        elif age_m <= 12:
+            growth = (3 * 2.0) + (3 * 1.0) + ((age_m - 6) * 0.5)
+        else:
+            growth = (3 * 2.0) + (3 * 1.0) + (6 * 0.5) + ((age_m - 12) * 0.15)
+
+        # تعديل طفيف بناءً على الوزن والطول الحالي مقارنة بالطول والوزن عند الولادة
+        cw = float(current_w) if current_w else 0.0
+        bw = float(birth_w) if birth_w else 0.0
+        weight_factor = ((cw - bw) * 0.1) if (cw > 0 and bw > 0) else 0.0
+
+        current_hc = base_hc + growth + weight_factor
+        return str(round(current_hc, 1))
+    except (ValueError, TypeError):
+        pass
+    return ""
+
 # ==================== دوال المساعدة ====================
 def clean_digits(val, max_len=None):
-    """تنظيف النص وإرجاع أرقام فقط في صيغة نصية لمنع الترميز العلمي"""
     if not val:
         return ""
     digits = "".join(filter(str.isdigit, str(val)))
@@ -220,7 +273,6 @@ def parse_national_id(nat_id):
     return "", ""
 
 def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
-    """جلب أوتوماتيكي فوري بمجرد اكتمال 14 رقم قومي"""
     clean_id = clean_digits(nat_id_val, 14)
     if len(clean_id) == 14 and st.session_state.get(f"{prefix}_last_fetched_id") != clean_id:
         try:
@@ -237,7 +289,6 @@ def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
             print(f"Fetch Error: {e}")
 
 def voice_input_field(label, key_name):
-    """حقل مدخلات نصية مدمج معه زر إدخال صوتي مباشر"""
     col_input, col_voice = st.columns([4, 1])
     with col_voice:
         st.write("") 
@@ -275,7 +326,6 @@ def voice_input_field(label, key_name):
     return val
 
 def clear_form_state(prefix):
-    """تفريغ الحقول تلقائياً بعد الحفظ"""
     cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
     for col in cols:
         st.session_state[f"{prefix}_{col}"] = ""
@@ -291,7 +341,6 @@ if not st.session_state.logged_in:
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        # 1. قائمة منسدلة لاختيار اسم المستخدم
         user_list = list(DEFAULT_USERS.keys())
         selected_username = st.selectbox("اختر اسم المستخدم (Username)", user_list, format_func=lambda x: f"{x} ({DEFAULT_USERS[x]['name']})")
         password_input = st.text_input("كلمة المرور (Password)", type="password")
@@ -332,7 +381,6 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ الزيارة" else ""
 
-    # حقل الرقم القومي مع إدخال صوتي
     raw_id = voice_input_field("الرقم القومى للزوجة", "p_الرقم القومى للزوجة_input")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
@@ -369,7 +417,6 @@ if menu == "سجل الحوامل":
             elif col_name in ["تاريخ الميلاد", "السن", "تاريخ ميلاد الزوج"]:
                 st.text_input(f"{col_name} [تلقائي]", key=f"p_{col_name}")
             else:
-                # 2. إدخال صوتي لجميع الحقول غير المنسدلة
                 val_voice = voice_input_field(col_name, f"p_voice_{col_name}")
                 st.session_state[f"p_{col_name}"] = val_voice
 
@@ -383,7 +430,6 @@ if menu == "سجل الحوامل":
         try:
             supabase.table("pregnant_records").insert(final_p_data).execute()
             st.success("تم حفظ بيانات الحامل في Supabase بنجاح! ✨")
-            # 3. تفريغ الحقول أوتوماتيكياً
             clear_form_state("p")
             st.rerun()
         except Exception as e:
@@ -405,6 +451,24 @@ elif menu == "سجل الأطفال":
             b_mom, _ = parse_national_id(clean_c_id)
             if b_mom: st.session_state["c_تاريخ ميلاد الام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم القومى للام", clean_c_id, "c")
+
+    # تحديث الحساب الآلي لمحيط/مقاس الرأس قبل الاستعراض
+    auto_birth_hc = calculate_birth_head_circumference(
+        st.session_state.get("c_وزن الطفل عند الولادة"),
+        st.session_state.get("c_طول الطفل عند الولادة")
+    )
+    if auto_birth_hc:
+        st.session_state["c_مقاس راس الطفل عند الولاده"] = auto_birth_hc
+
+    auto_curr_hc = calculate_current_head_circumference(
+        st.session_state.get("c_العمر الحالى للطفل (شهور)"),
+        st.session_state.get("c_وزن الطفل عند الولادة"),
+        st.session_state.get("c_طول الطفل عند الولادة"),
+        st.session_state.get("c_الوزن (كجم)"),
+        st.session_state.get("c_الطول (سم)")
+    )
+    if auto_curr_hc:
+        st.session_state["c_محيط الرأس (سم)"] = auto_curr_hc
 
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
@@ -440,6 +504,10 @@ elif menu == "سجل الأطفال":
                 f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
                 key=f"c_radio_{col_name}", horizontal=True
             )
+        # الخانات المحسوبة أوتوماتيكياً (مقاس الرأس عند الولادة ومحيط الرأس الحالي)
+        elif col_name in ["مقاس راس الطفل عند الولادة", "محيط الرأس (سم)"]:
+            st.text_input(f"{col_name} [حساب تلقائي ⚙️]", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_auto_{col_name}", disabled=True)
+
         else:
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
                 raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
@@ -462,7 +530,6 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر الحالى للطفل (شهور)"] = age_str
                     st.session_state["c_العمر الرحمى للطفل (أسابيع)"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                # 2. إدخال صوتي لجميع الحقول النصية
                 val_voice = voice_input_field(col_name, f"c_voice_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_voice
 
@@ -476,7 +543,6 @@ elif menu == "سجل الأطفال":
         try:
             supabase.table("children_records").insert(final_c_data).execute()
             st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
-            # 3. تفريغ الحقول أوتوماتيكياً
             clear_form_state("c")
             st.rerun()
         except Exception as e:
@@ -493,7 +559,6 @@ elif menu == "استعراض البيانات والداشبورد":
         res = supabase.table(db_table_name).select("*").execute()
         df_view = pd.DataFrame(res.data) if res.data else pd.DataFrame()
         
-        # 4. منع الترقيم العلمي (Scientific Notation) للأرقام القومية
         for col in df_view.columns:
             if "الرقم القومى" in col or "رقم الموبايل" in col:
                 df_view[col] = df_view[col].astype(str).apply(lambda x: clean_digits(x))
@@ -530,7 +595,6 @@ elif menu == "استيراد البيانات (Excel/CSV)":
             else:
                 df_upload = pd.read_excel(uploaded_file, dtype=str)
 
-            # معالجة الأرقام القومية لمنع صيغ Scientific Notation
             for col in df_upload.columns:
                 if "الرقم القومى" in col or "رقم الموبايل" in col:
                     df_upload[col] = df_upload[col].astype(str).apply(lambda x: clean_digits(x))
