@@ -5,7 +5,7 @@ import streamlit as st
 from supabase import create_client, Client
 
 # ==================== إعدادات Supabase ====================
-SUPABASE_URL = "ndxzbpmdvqjinpjrbytd"
+SUPABASE_URL = "https://ndxzbpmdvqjinpjrbytd.supabase.co"
 SUPABASE_KEY = "sb_publishable_ubwXt_RivsCvAT6nFE0hoQ_3DD5aYOK"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -49,8 +49,6 @@ footer {visibility: hidden;}
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==================== الثوابت وإعدادات البيانات ====================
-# تم إلغاء الاعتماد على ملف template.xlsx والاعتماد على جداول Supabase
-
 DEFAULT_USERS = {
     "admin": {"pass": "admin123", "role": "admin", "name": "د. شيماء 🌸"},
     "user1": {"pass": "1234", "role": "user", "name": "د. علا 🎀"},
@@ -218,69 +216,6 @@ DROPDOWN_OPTIONS = {
     "كفاية اللبن وكمية البراز": ["تم", "لم يتم"],
 }
 
-PREGNANT_COLUMNS = [
-    "تاريخ التسجيل",
-    "اسم المستخدم",
-    "الاسم",
-    "العنوان",
-    "الرقم القومى",
-    "رقم الموبايل",
-    "العمر الحالى",
-    "السن عند الزواج",
-    "السن عند الحمل الاول",
-    "مستوى التعليم",
-    "الوظيفة",
-    "تاريخ اخر دورة شهرية",
-    "قرابة بين الزوجين",
-    "عدد مرات الحمل",
-    "عدد مرات الاجهاض",
-    "عدد الاطفال",
-    "المدة بين اخر حملين",
-    "نوع الولادة",
-    "أمراض مزمنة: إرتفاع ضغط الدم",
-    "أمراض مزمنة: السكر",
-    "أمراض مزمنة: إضطرابات الغدة",
-    "أمراض مزمنة: الأنيميا",
-    "أمراض مزمنة: اخرى",
-    'مكملات "قبل": حمض الفوليك',
-    'مكملات "قبل": الحديد',
-    'مكملات "قبل": الكالسيوم',
-    'مكملات "أثناء": حمض الفوليك',
-    'مكملات "أثناء": الحديد',
-    'مكملات "أثناء": الكالسيوم',
-    "وسيلة تنظيم الأسرة المستخدمة سابقا",
-    "مدة إستخدام الوسيلة السابقة",
-    "شهر الحمل",
-    "التاريخ الزيارة",
-    "التغذية السليمة",
-    "المكملات الغذائية",
-    "التمرينات الرياضية",
-    "قسط من النوم والراحة",
-    "المتابعة الدورية للحمل",
-    "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة",
-    "المتاعب البسيطة في الشهور الأولى",
-    "المتاعب في الشهور الأخيرة",
-    "علامات الخطر أثناء الحمل",
-    "مشاكل الولادة المبكرة وكيفية تجنبها",
-    "حركة الجنين / معرفة جنس الجنين/ تمييز الأصوات من قبل الجنين",
-    "تغير لون الجلد حول الحلمة وظهور بعض إفرازات من الثدي",
-    "إرتداء الملابس الفضفاضة المريحة",
-    "الإستعداد للولادة / تحضير ملابس المولود ، الخ",
-    "علامات الولادة",
-    "مميزات الولادة الطبيعية",
-    "الساعة الذهبية الأولى",
-    "ملامسة الجلد للجلد",
-    "البداية المبكرة للرضاعة الطبيعية",
-    "الرضاعة الطبيعية المطلقة",
-    "أهمية المباعدة",
-    "وسائل تنظيم الأسرة",
-    "إستخدام وسيلة بعد الولادة مباشرة",
-    "التطور العصبي والنفسي للطفل",
-    "ملاحظات/ توصيات",
-    "تخطيط الزيارة القادمة",
-    "المتابعة ما بعد الولادة",
-]
-
 CHILD_COLUMNS = [
     "تاريخ التسجيل",
     "اسم المستخدم",
@@ -362,6 +297,7 @@ YES_NO_CHECKBOX_FIELDS = [
 ]
 
 
+# ==================== دوال المساعدة ====================
 def clean_digits(val, max_len=None):
   if not val:
     return ""
@@ -427,116 +363,7 @@ def calculate_motor_development(
   except Exception:
     return "طبيعى"
 
-# ==================== استكمال شاشة سجل الأطفال (زر الحفظ) ====================
-if menu == "سجل الأطفال":
-  # ... (الجزء السابق من سجل الأطفال)
-  if st.button("💾 حفظ بيانات الطفل والزيارة", use_container_width=True):
-    final_form_data = {}
-    for col in CHILD_COLUMNS:
-      if col == "تاريخ التسجيل":
-        final_form_data[col] = datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-      elif col == "اسم المستخدم":
-        final_form_data[col] = st.session_state.name
-      elif col == "الرقم القومى للام":
-        final_form_data[col] = st.session_state.get(
-            "c_الرقم القومى للام", nat_id_mom_input
-        )
-      else:
-        final_form_data[col] = st.session_state.get(f"c_{col}", "")
 
-    new_df = pd.DataFrame([final_form_data], dtype=str)
-    excel = pd.ExcelFile(EXCEL_FILE)
-    all_dfs = {
-        s: pd.read_excel(excel, sheet_name=s, dtype=str)
-        for s in excel.sheet_names
-    }
-
-    for col in CHILD_COLUMNS:
-      if col not in new_df.columns:
-        new_df[col] = ""
-    new_df = new_df[CHILD_COLUMNS]
-
-    if "سجل المشورة للاطفال" in all_dfs:
-      all_dfs["سجل المشورة للاطفال"] = pd.concat(
-          [all_dfs["سجل المشورة للاطفال"], new_df], ignore_index=True
-      )
-    else:
-      all_dfs["سجل المشورة للاطفال"] = new_df
-
-    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-      for s, df in all_dfs.items():
-        df.to_excel(writer, sheet_name=s, index=False)
-    st.success("تم حفظ بيانات الطفل بنجاح! ✨")
-
-# ==================== 4. استعراض البيانات والداشبورد ====================
-elif menu == "استعراض البيانات والداشبورد":
-  st.markdown(
-      "<h2>📊 استعراض البيانات واللوحة الإحصائية (Dashboard)</h2>",
-      unsafe_allow_html=True,
-  )
-
-  if os.path.exists(EXCEL_FILE):
-    excel_file_obj = pd.ExcelFile(EXCEL_FILE)
-    sheet_selection = st.selectbox(
-        "اختر السجل للاستعراض:", excel_file_obj.sheet_names
-    )
-
-    df_view = pd.read_excel(excel_file_obj, sheet_name=sheet_selection, dtype=str)
-
-    st.markdown(
-        f"### إجمالي عدد السجلات في ({sheet_selection}):"
-        f" `{len(df_view)}`"
-    )
-
-    if not df_view.empty:
-      search_query = st.text_input(
-          "🔍 بحث سريع في البيانات (بالاسم أو الرقم القومي):"
-      )
-      if search_query:
-        mask = df_view.astype(str).apply(
-            lambda x: x.str.contains(search_query, case=False, na=False)
-        ).any(axis=1)
-        df_view = df_view[mask]
-        st.markdown(f"عدد النتائج المطابقة للبحث: `{len(df_view)}`")
-
-      st.dataframe(df_view, use_container_width=True)
-
-      # زر تحميل الملف المحدث
-      with open(EXCEL_FILE, "rb") as f:
-        st.download_button(
-            label="📥 تحميل ملف Excel المحدث بالكامل",
-            data=f,
-            file_name="Family_Counseling_System_Data.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
-        )
-    else:
-      st.info("لا توجد بيانات مسجلة في هذا الشيت حتى الآن.")
-  else:
-    st.warning("لم يتم العثور على ملف البيانات.")
-
-# ==================== 5. إدارة المستخدمين (للمسؤول فقط) ====================
-elif menu == "إدارة المستخدمين":
-  if st.session_state.role != "admin":
-    st.error("عذراً، هذه الصفحة مخصصة للمدير (Admin) فقط!")
-  else:
-    st.markdown("<h2>⚙️ لوحة إدارة المستخدمين والصلاحيات</h2>", unsafe_allow_html=True)
-    st.write("إدارة حسابات الطبيبات وصلاحيات الوصول للنظام.")
-
-    # عرض المستخدمين الحاليين كجدول
-    users_data = []
-    for username, info in DEFAULT_USERS.items():
-      users_data.append({
-          "اسم المستخدم (Username)": username,
-          "اسم الطبيبة": info["name"],
-          "الصلاحية": info["role"],
-      })
-    st.dataframe(pd.DataFrame(users_data), use_container_width=True)
-
-    # ==================== دوال المساعدة لـ Supabase ====================
 def get_existing_data_supabase(nat_id, table_name, id_column):
   clean_id = clean_digits(nat_id, 14)
   if len(clean_id) == 14:
@@ -548,13 +375,66 @@ def get_existing_data_supabase(nat_id, table_name, id_column):
           .execute()
       )
       if response.data and len(response.data) > 0:
-        return response.data[-1]  # إرجاع أحدث سجل
+        return response.data[-1]
     except Exception as e:
       print(f"Error fetching existing data: {e}")
   return {}
 
 
-# ==================== استكمال شاشة سجل الأطفال ====================
+# ==================== تسجيل الدخول (Authentication) ====================
+if "logged_in" not in st.session_state:
+  st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+  st.markdown(
+      "<h1 style='text-align: center;'>🌸 برنامج بودى للمشورة الأسرية 🌸</h1>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<h3 style='text-align: center; color: #555;'>تسجيل الدخول للنظام</h3>",
+      unsafe_allow_html=True,
+  )
+
+  col1, col2, col3 = st.columns([1, 2, 1])
+  with col2:
+    username_input = st.text_input("اسم المستخدم (Username)")
+    password_input = st.text_input("كلمة المرور (Password)", type="password")
+
+    if st.button("تسجيل الدخول", use_container_width=True):
+      if (
+          username_input in DEFAULT_USERS
+          and DEFAULT_USERS[username_input]["pass"] == password_input
+      ):
+        st.session_state.logged_in = True
+        st.session_state.username = username_input
+        st.session_state.name = DEFAULT_USERS[username_input]["name"]
+        st.session_state.role = DEFAULT_USERS[username_input]["role"]
+        st.success(f"مرحباً بكِ {st.session_state.name} ✨")
+        st.rerun()
+      else:
+        st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
+  st.stop()
+
+
+# ==================== القائمة الجانبية (Sidebar) ====================
+st.sidebar.markdown(f"### 👩‍⚕️ أهلاً بكِ، {st.session_state.name}")
+st.sidebar.markdown("---")
+
+menu_options = [
+    "سجل الأطفال",
+    "استعراض البيانات والداشبورد",
+]
+if st.session_state.role == "admin":
+  menu_options.append("إدارة المستخدمين")
+
+menu = st.sidebar.selectbox("📋 اختر القسم المطلوب:", menu_options)
+
+if st.sidebar.button("🚪 تسجيل الخروج"):
+  st.session_state.logged_in = False
+  st.rerun()
+
+
+# ==================== 1. سجل الأطفال ====================
 if menu == "سجل الأطفال":
   st.markdown("<h2>👶 سجل المشورة الأسرية للأطفال</h2>", unsafe_allow_html=True)
 
@@ -582,8 +462,6 @@ if menu == "سجل الأطفال":
     if st.button("🔍 استرجاع بيانات الأسرة المسجلة مسبقاً"):
       found_data = get_existing_data_supabase(
           nat_id_mom_input, "children_records", "الرقم القومى للام"
-      ) or get_existing_data_supabase(
-          nat_id_mom_input, "pregnant_records", "الرقم القومى"
       )
       for c_name in CHILD_COLUMNS:
         if c_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
@@ -900,22 +778,15 @@ if menu == "سجل الأطفال":
     except Exception as e:
       st.error(f"حدث خطأ أثناء الحفظ في قاعدة البيانات: {e}")
 
-# ==================== 4. استعراض البيانات والداشبورد (Supabase) ====================
+
+# ==================== 2. استعراض البيانات والداشبورد ====================
 elif menu == "استعراض البيانات والداشبورد":
   st.markdown(
       "<h2>📊 لوحة المؤشرات واستعراض البيانات المبسطة</h2>",
       unsafe_allow_html=True,
   )
 
-  table_selection = st.selectbox(
-      "اختر السجل للاستعراض:",
-      ["المشورة الاسرية للحامل", "سجل المشورة للاطفال"],
-  )
-  db_table_name = (
-      "pregnant_records"
-      if table_selection == "المشورة الاسرية للحامل"
-      else "children_records"
-  )
+  db_table_name = "children_records"
 
   try:
     response = supabase.table(db_table_name).select("*").execute()
@@ -924,9 +795,7 @@ elif menu == "استعراض البيانات والداشبورد":
     st.error(f"خطأ في جلب البيانات من القاعدة: {e}")
     df_view = pd.DataFrame()
 
-  st.markdown("### 📅 تحديد فترة البحث والفلترة الزمنية والمستخدمين")
   filtered_df = df_view.copy()
-
   date_col = (
       "تاريخ الزيارة"
       if not df_view.empty and "تاريخ الزيارة" in df_view.columns
@@ -978,129 +847,62 @@ elif menu == "استعراض البيانات والداشبورد":
     filtered_df = filtered_df[filtered_df["اسم المستخدم"] == selected_user_filter]
 
   st.markdown("---")
+  st.markdown("### 👶 ملخص مؤشرات الأداء والخدمات للأطفال")
+  total_child_cases = len(filtered_df)
 
-  if table_selection == "المشورة الاسرية للحامل":
-    st.markdown("### 🤰 جدول مؤشرات الحوامل المطلوبة")
-    total_pregnant_cases = len(filtered_df)
-
-    def count_match_val(df, col_name, target_val):
-      if col_name in df.columns and not df.empty:
-        return (
-            df[col_name]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-            .eq(target_val)
-            .sum()
-        )
-      return 0
-
-    periodic_followup_count = count_match_val(
-        filtered_df, "المتابعة الدورية للحمل", "تم"
-    )
-    natural_birth_count = count_match_val(filtered_df, "نوع الولادة", "طبيعى")
-    cesarean_birth_count = count_match_val(filtered_df, "نوع الولادة", "قيصرى")
-
-    fam_plan_prev_count = 0
-    if (
-        "وسيلة تنظيم الأسرة المستخدمة سابقا" in filtered_df.columns
-        and not filtered_df.empty
-    ):
-      fam_plan_prev_count = (
-          filtered_df["وسيلة تنظيم الأسرة المستخدمة سابقا"]
-          .fillna("")
-          .astype(str)
-          .str.strip()
-          .ne("")
-          .sum()
+  def count_match(df, col_name, target_val):
+    if col_name in df.columns and not df.empty:
+      return (
+          df[col_name].fillna("").astype(str).str.strip().eq(target_val).sum()
       )
+    return 0
 
-    pregnant_summary_df = pd.DataFrame({
-        "المؤشر المطلوبة": [
-            "إجمالي الحالات",
-            "عدد حالات المتابعة الدورية للحمل",
-            "عدد الولادة الطبيعية",
-            "عدد الولادة القيصرية",
-            "إجمالي عدد حالات وسيلة تنظيم الأسرة المستخدمة سابقاً",
-        ],
-        "العدد": [
-            int(total_pregnant_cases),
-            int(periodic_followup_count),
-            int(natural_birth_count),
-            int(cesarean_birth_count),
-            int(fam_plan_prev_count),
-        ],
-    })
-    st.dataframe(
-        pregnant_summary_df, use_container_width=True, hide_index=True
-    )
-    st.markdown("---")
-
-  elif table_selection == "سجل المشورة للاطفال":
-    st.markdown(
-        "### 👶 ملخص مؤشرات الأداء والخدمات (البيانات المطلوبة للأسرة والطفل)"
-    )
-    total_child_cases = len(filtered_df)
-
-    def count_match(df, col_name, target_val):
-      if col_name in df.columns and not df.empty:
-        return (
-            df[col_name]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-            .eq(target_val)
-            .sum()
-        )
-      return 0
-
-    incubator_count = count_match(filtered_df, "دخول الحضانة", "تم")
-    skin_contact_count = count_match(
-        filtered_df, "ملامسة الجلد فى الساعة الذهبية الأولى", "تم"
-    )
-    bf_golden_count = count_match(
-        filtered_df, "الرضاعة الطبيعية فى الساعة الذهبية الأولى", "تم"
-    )
-    exclusive_bf_6m_count = 0
-    if "رضاعة طبيعية مطلقة" in filtered_df.columns and not filtered_df.empty:
-      exclusive_bf_6m_count = (
-          filtered_df["رضاعة طبيعية مطلقة"]
-          .fillna("")
-          .astype(str)
-          .str.strip()
-          .isin(["3 شهور", "4 شهور", "6 شهور"])
-          .sum()
-      )
-
-    family_planning_child_count = count_match(
-        filtered_df, "تحويل الى عيادة تنظيم الاسره", "تم"
+  incubator_count = count_match(filtered_df, "دخول الحضانة", "تم")
+  skin_contact_count = count_match(
+      filtered_df, "ملامسة الجلد فى الساعة الذهبية الأولى", "تم"
+  )
+  bf_golden_count = count_match(
+      filtered_df, "الرضاعة الطبيعية فى الساعة الذهبية الأولى", "تم"
+  )
+  exclusive_bf_6m_count = 0
+  if "رضاعة طبيعية مطلقة" in filtered_df.columns and not filtered_df.empty:
+    exclusive_bf_6m_count = (
+        filtered_df["رضاعة طبيعية مطلقة"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .isin(["3 شهور", "4 شهور", "6 شهور"])
+        .sum()
     )
 
-    summary_df = pd.DataFrame({
-        "البيان": [
-            "إجمالي عدد حالات الأطفال",
-            "عدد حالات دخول الحضانة",
-            "عدد حالات ملامسة الجلد فى الساعة الذهبية الأولى",
-            "عدد حالات الرضاعة الطبيعية فى الساعة الذهبية الأولى",
-            "رضاعة طبيعية مطلقة 6 شهور",
-            "عدد حالات تحويل الى عيادة تنظيم الاسره",
-        ],
-        "الرقم": [
-            int(total_child_cases),
-            int(incubator_count),
-            int(skin_contact_count),
-            int(bf_golden_count),
-            int(exclusive_bf_6m_count),
-            int(family_planning_child_count),
-        ],
-    })
-    st.dataframe(summary_df, use_container_width=True, hide_index=True)
-    st.markdown("---")
+  family_planning_child_count = count_match(
+      filtered_df, "تحويل الى عيادة تنظيم الاسره", "تم"
+  )
 
-  total_records = len(filtered_df)
+  summary_df = pd.DataFrame({
+      "البيان": [
+          "إجمالي عدد حالات الأطفال",
+          "عدد حالات دخول الحضانة",
+          "عدد حالات ملامسة الجلد فى الساعة الذهبية الأولى",
+          "عدد حالات الرضاعة الطبيعية فى الساعة الذهبية الأولى",
+          "رضاعة طبيعية مطلقة (3-6 شهور)",
+          "عدد حالات تحويل الى عيادة تنظيم الاسره",
+      ],
+      "الرقم": [
+          int(total_child_cases),
+          int(incubator_count),
+          int(skin_contact_count),
+          int(bf_golden_count),
+          int(exclusive_bf_6m_count),
+          int(family_planning_child_count),
+      ],
+  })
+  st.dataframe(summary_df, use_container_width=True, hide_index=True)
+  st.markdown("---")
+
   col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
   with col_kpi1:
-    st.metric(label="📁 إجمالي الحالات بالفترة", value=total_records)
+    st.metric(label="📁 إجمالي الحالات بالفترة", value=total_child_cases)
   with col_kpi2:
     unique_users_count = (
         filtered_df["اسم المستخدم"].nunique()
@@ -1109,7 +911,7 @@ elif menu == "استعراض البيانات والداشبورد":
     )
     st.metric(label="👩‍⚕️ الطبيبات المشاركات", value=unique_users_count)
   with col_kpi3:
-    st.metric(label="📑 القسم الحالي", value=table_selection)
+    st.metric(label="📑 السجل الحالي", value="سجل الأطفال")
 
   st.markdown("---")
   search_query = st.text_input("🔍 بحث سريع إضافي:")
@@ -1132,14 +934,8 @@ elif menu == "استعراض البيانات والداشبورد":
         " البيانات نهائياً من قاعدة بيانات Supabase."
     )
 
-    id_col_target = (
-        "الرقم القومى"
-        if table_selection == "المشورة الاسرية للحامل"
-        else "الرقم القومى للام"
-    )
-
     nat_id_to_delete = st.text_input(
-        "أدخل الرقم القومي المراد حذفه بالكامل:",
+        "أدخل الرقم القومي للأم المراد حذفه بالكامل:",
         max_chars=14,
         key="admin_del_nat_id",
     )
@@ -1147,12 +943,9 @@ elif menu == "استعراض البيانات والداشبورد":
       cleaned_del_id = clean_digits(nat_id_to_delete, 14)
       if len(cleaned_del_id) == 14:
         try:
-          res = (
-              supabase.table(db_table_name)
-              .delete()
-              .eq(id_col_target, cleaned_del_id)
-              .execute()
-          )
+          supabase.table(db_table_name).delete().eq(
+              "الرقم القومى للام", cleaned_del_id
+          ).execute()
           st.success("تم الحذف من قاعدة بيانات Supabase بنجاح! ✨")
           st.rerun()
         except Exception as e:
@@ -1164,17 +957,26 @@ elif menu == "استعراض البيانات والداشبورد":
   if not filtered_df.empty:
     csv_data = filtered_df.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
-        label="📥 تحميل البيانات المعروضة (CSV)",
+        label="📥 تحميل البيانات المعروضة (CSV / Excel)",
         data=csv_data,
-        file_name=f"{db_table_name}_export.csv",
+        file_name="children_records_export.csv",
         mime="text/csv",
         use_container_width=True,
     )
-else:
-  st.warning("لا توجد بيانات مسجلة حتى الآن.")
+  else:
+    st.info("لا توجد بيانات مسجلة حتى الآن.")
 
-# ==================== 5. إدارة المستخدمين ====================
+
+# ==================== 3. إدارة المستخدمين ====================
 elif menu == "إدارة المستخدمين" and st.session_state.role == "admin":
   st.markdown("<h2>⚙️ إدارة المستخدمين والصلاحيات</h2>", unsafe_allow_html=True)
-  for k, v in DEFAULT_USERS.items():
-    st.write(f"- **{v['name']}** | اسم المستخدم: `{k}` | الصلاحية: `{v['role']}`")
+  st.write("إدارة حسابات الطبيبات وصلاحيات الوصول للنظام.")
+
+  users_data = []
+  for username, info in DEFAULT_USERS.items():
+    users_data.append({
+        "اسم المستخدم (Username)": username,
+        "اسم الطبيبة": info["name"],
+        "الصلاحية": info["role"],
+    })
+  st.dataframe(pd.DataFrame(users_data), use_container_width=True, hide_index=True)
