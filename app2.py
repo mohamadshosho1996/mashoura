@@ -7,7 +7,6 @@ import streamlit as st
 from supabase import create_client, Client
 
 # ==================== إعدادات Supabase ====================
-# يفضل استخدام st.secrets لعدم كشف المفاتيح
 SUPABASE_URL = "https://ndxzbpmdvqjinpjrbytd.supabase.co"
 SUPABASE_KEY = "sb_publishable_ubwXt_RivsCvAT6nFE0hoQ_3DD5aYOK"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -377,43 +376,6 @@ def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
         except Exception as e:
             print(f"Fetch Error: {e}")
 
-def voice_input_field(label, key_name):
-    col_input, col_voice = st.columns([4, 1])
-    with col_voice:
-        st.write("") 
-        st.write("") 
-        html_code = f"""
-        <script>
-        function startDictation_{key_name}() {{
-            if (window.hasOwnProperty('webkitSpeechRecognition')) {{
-                var recognition = new webkitSpeechRecognition();
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                recognition.lang = "ar-EG";
-                recognition.start();
-                recognition.onresult = function(e) {{
-                    var text = e.results[0][0].transcript;
-                    var targetInput = window.parent.document.querySelector('input[data-testid="stTextInput"][aria-label="{label}"]');
-                    if(targetInput) {{
-                        targetInput.value = text;
-                        targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    }}
-                    recognition.stop();
-                }};
-                recognition.onerror = function(e) {{ recognition.stop(); }}
-            }} else {{
-                alert("خاصية التعرف على الصوت غير مدعومة في جهازك/متصفحك الحالي.");
-            }}
-        }}
-        </script>
-        <button type="button" onclick="startDictation_{key_name}()" style="background:#4C1D95; color:white; border:none; padding:8px 10px; border-radius:6px; cursor:pointer; width:100%;">🎤 صوتي</button>
-        """
-        st.components.v1.html(html_code, height=45)
-
-    with col_input:
-        val = st.text_input(label, key=key_name)
-    return val
-
 def clear_form_state(prefix):
     cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
     for col in cols:
@@ -470,7 +432,7 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ الزيارة" else ""
 
-    raw_id = voice_input_field("الرقم القومى للزوجة", "p_الرقم القومى للزوجة_input")
+    raw_id = st.text_input("الرقم القومى للزوجة", key="p_الرقم القومى للزوجة_input")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم القومى للزوجة"] = clean_p_id
@@ -494,20 +456,20 @@ if menu == "سجل الحوامل":
             )
         else:
             if col_name == "الرقم القومى للزوج":
-                raw_husband_id = voice_input_field(col_name, f"p_{col_name}_raw")
+                raw_husband_id = st.text_input(col_name, key=f"p_{col_name}_raw")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
                     hb_date, _ = parse_national_id(clean_h_id)
                     if hb_date: st.session_state["p_تاريخ ميلاد الزوج"] = hb_date
             elif col_name == "رقم الموبايل":
-                raw_mob = voice_input_field(col_name, f"p_{col_name}_raw")
+                raw_mob = st.text_input(col_name, key=f"p_{col_name}_raw")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
             elif col_name in ["تاريخ الميلاد", "السن", "تاريخ ميلاد الزوج"]:
                 st.text_input(f"{col_name} [تلقائي]", key=f"p_{col_name}")
             else:
-                val_voice = voice_input_field(col_name, f"p_voice_{col_name}")
-                st.session_state[f"p_{col_name}"] = val_voice
+                val_text = st.text_input(col_name, key=f"p_text_{col_name}")
+                st.session_state[f"p_{col_name}"] = val_text
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
         final_p_data = {}
@@ -538,7 +500,7 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ الزيارة", "تاريخ اول زيارة"] else ""
 
-    raw_nat_id_mom = voice_input_field("الرقم القومى للام (اختياري)", "c_الرقم القومى للام_input")
+    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", key="c_الرقم القومى للام_input")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم القومى للام"] = clean_c_id
@@ -547,7 +509,6 @@ elif menu == "سجل الأطفال":
             if b_mom: st.session_state["c_تاريخ ميلاد الام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم القومى للام", clean_c_id, "c")
 
-    # تصحيح الخطأ الإملائي بحساب المقاس (تعديل ة بدل ه)
     auto_birth_hc = calculate_birth_head_circumference(
         st.session_state.get("c_وزن الطفل عند الولادة"),
         st.session_state.get("c_طول الطفل عند الولادة")
@@ -630,10 +591,10 @@ elif menu == "سجل الأطفال":
 
         else:
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
-                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
+                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم الموبايل للام", "رقم الموبايل للاب"]:
-                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
+                raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name == "تاريخ الميلاد للطفل":
                 def_date = datetime.date.today()
@@ -650,8 +611,8 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر الحالى للطفل (شهور)"] = age_str
                     st.session_state["c_العمر الرحمى للطفل (أسابيع)"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                val_voice = voice_input_field(col_name, f"c_voice_{col_name}")
-                st.session_state[f"c_{col_name}"] = val_voice
+                val_text = st.text_input(col_name, key=f"c_text_{col_name}")
+                st.session_state[f"c_{col_name}"] = val_text
 
     if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
         final_c_data = {}
@@ -692,104 +653,50 @@ elif menu == "استعراض البيانات والداشبورد":
                 df_view[c] = ""
         df_view = df_view[target_cols]
 
-        if st.session_state.role != "admin":
-            df_view = df_view[df_view["اسم المستخدم"] == st.session_state.name]
+        st.dataframe(df_view, use_container_width=True)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("إجمالي السجلات المسجلة", len(df_view))
-        if record_type == "سجل الحوامل":
-            col2.metric("الحوامل في الشهر الأخير", len(df_view[df_view["شهر الحمل"] == "الشهر التاسع"]))
-            col3.metric("متابعات هذا الشهر", len(df_view[df_view["تاريخ الزيارة"].astype(str).str.startswith(today_str[:7])]))
-        else:
-            col2.metric("أطفال الحضانة", len(df_view[df_view["دخول الحضانة"] == "تم"]))
-            col3.metric("زيارات هذا الشهر", len(df_view[df_view["تاريخ الزيارة"].astype(str).str.startswith(today_str[:7])]))
+        # زر التصدير إلى Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_view.to_excel(writer, index=False, sheet_name='Sheet1')
+        excel_data = output.getvalue()
 
-        st.markdown("---")
-
-        search_query = st.text_input("🔍 بحث في البيانات (بالاسم أو الرقم القومي):")
-        if search_query:
-            filter_mask = df_view.astype(str).apply(lambda row: row.str.contains(search_query, case=False).any(), axis=1)
-            df_display = df_view[filter_mask]
-        else:
-            df_display = df_view
-
-        st.dataframe(df_display, use_container_width=True)
-
-        @st.cache_data
-        def convert_df_to_excel(df):
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name='Data')
-            return output.getvalue()
-
-        excel_data = convert_df_to_excel(df_display)
         st.download_button(
-            label="📥 تحميل البيانات بصيغة Excel",
+            label="📥 تحميل البيانات كملف Excel",
             data=excel_data,
             file_name=f"{db_table_name}_{today_str}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
     except Exception as e:
-        st.error(f"حدث خطأ أثناء استعراض البيانات: {e}")
+        st.error(f"حدث خطأ أثناء جلب البيانات: {e}")
 
-# ==================== 4. استيراد البيانات (Excel/CSV) ====================
+# ==================== 4. استيراد البيانات ====================
 elif menu == "استيراد البيانات (Excel/CSV)":
-    st.markdown("<h2>📤 استيراد بيانات جديدة إلى Supabase</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📂 استيراد البيانات من ملفات Excel أو CSV</h2>", unsafe_allow_html=True)
+    import_type = st.radio("اختر جدول الاستيراد:", ["سجل الحوامل", "سجل الأطفال"], horizontal=True)
+    db_table_name = "pregnant_records" if import_type == "سجل الحوامل" else "children_records"
     
-    target_table = st.radio("اختر السجل المراد رفع البيانات إليه:", ["سجل الحوامل", "سجل الأطفال"], horizontal=True)
-    db_name = "pregnant_records" if target_table == "سجل الحوامل" else "children_records"
-    cols_schema = PREGNANT_COLUMNS if target_table == "سجل الحوامل" else CHILD_COLUMNS
-
-    uploaded_file = st.file_uploader("اختر ملف Excel أو CSV:", type=["xlsx", "xls", "csv"])
-
+    uploaded_file = st.file_uploader("اختر الملف", type=["xlsx", "csv"])
     if uploaded_file is not None:
         try:
-            if uploaded_file.name.endswith(".csv"):
-                df_upload = pd.read_csv(uploaded_file, dtype=str)
+            if uploaded_file.name.endswith('.csv'):
+                df_import = pd.read_csv(uploaded_file)
             else:
-                df_upload = pd.read_excel(uploaded_file, dtype=str)
-
-            df_upload = df_upload.fillna("")
-            st.write("📋 معاينة البيانات المراد رفعها:")
-            st.dataframe(df_upload.head())
-
-            if st.button("🚀 بدء رفع البيانات إلى Supabase", use_container_width=True):
-                records_to_insert = []
-                for _, row in df_upload.iterrows():
-                    record = {}
-                    for col in cols_schema:
-                        val = row.get(col, "")
-                        if "الرقم القومى" in col or "رقم الموبايل" in col:
-                            val = format_text_for_excel(val)
-                        record[col] = str(val) if val is not None else ""
-                    
-                    if not record.get("تاريخ التسجيل"):
-                        record["تاريخ التسجيل"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    if not record.get("اسم المستخدم"):
-                        record["اسم المستخدم"] = st.session_state.name
-                        
-                    records_to_insert.append(record)
-
-                supabase.table(db_name).insert(records_to_insert).execute()
-                st.success(f"تم رفع {len(records_to_insert)} سجل بنجاح إلى Supabase! ✨")
-
+                df_import = pd.read_excel(uploaded_file)
+            
+            st.write("معاينة البيانات المستوردة:", df_import.head())
+            if st.button("رفع وحفظ البيانات في قاعدة البيانات"):
+                records_to_insert = df_import.to_dict(orient="records")
+                for rec in records_to_insert:
+                    cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
+                    supabase.table(db_table_name).insert(cleaned_rec).execute()
+                st.success("تم رفع البيانات واستيرادها بنجاح! ✨")
         except Exception as e:
-            st.error(f"خطأ أثناء قراءة أو رفع الملف: {e}")
+            st.error(f"حدث خطأ أثناء قراءة أو رفع الملف: {e}")
 
-# ==================== 5. إدارة المستخدمين (Admin Only) ====================
-elif menu == "إدارة المستخدمين":
-    st.markdown("<h2>⚙️ إدارة حسابات المستخدمين</h2>", unsafe_allow_html=True)
-    
-    if st.session_state.role != "admin":
-        st.error("عذراً، هذه الصفحة متاحة فقط للمسؤولين (Admin).")
-    else:
-        st.subheader("👥 الحسابات المسجلة حالياً:")
-        user_df = pd.DataFrame([
-            {"اسم المستخدم": k, "الاسم الظاهر": v["name"], "الصلاحية": v["role"]}
-            for k, v in DEFAULT_USERS.items()
-        ])
-        st.table(user_df)
-
-        st.info("ملاحظة: تعديل وتحديد المستخدمين يتم إدارته من خلال قائمة الثوابت الرئيسية بالحسابات.")
+# ==================== 5. إدارة المستخدمين ====================
+elif menu == "إدارة المستخدمين" and st.session_state.role == "admin":
+    st.markdown("<h2>⚙️ إدارة المستخدمين وصلاحيات النظام</h2>", unsafe_allow_html=True)
+    st.info("قسم إدارة المستخدمين (متاح للمسؤول فقط). يمكنك إضافة أو تعديل الحسابات حسب الحاجة.")
+    for username, info in DEFAULT_USERS.items():
+        st.write(f"- **المستخدم:** {username} | **الاسم:** {info['name']} | **الصلاحية:** {info['role']}")
