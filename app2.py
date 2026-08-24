@@ -64,6 +64,25 @@ VISIT_SCHEDULE_OPTIONS = [
     "عمر 4 سنين ونصف", "عمر 5 سنين", "عمر 5 سنين ونصف", "عمر 6 سنين"
 ]
 
+VISIT_MONTHS_MAP = {
+    "الاسبوع الاول": 0.25,
+    "عمر شهرين": 2,
+    "عمر 4 شهور": 4,
+    "عمر 6 شهور": 6,
+    "عمر 9 شهور": 9,
+    "عمر 12 شهر": 12,
+    "عمر 18 شهر": 18,
+    "عمر سنتين": 24,
+    "عمر سنتين ونصف": 30,
+    "عمر 3 سنين": 36,
+    "عمر 3 سنين ونصف": 42,
+    "عمر 4 سنين": 48,
+    "عمر 4 سنين ونصف": 54,
+    "عمر 5 سنين": 60,
+    "عمر 5 سنين ونصف": 66,
+    "عمر 6 سنين": 72
+}
+
 DROPDOWN_OPTIONS = {
     "مستوى التعليم": ["امى", "يجيد القراءة", "مؤهل متوسط", "فوق متوسط", "مؤهل عالى"],
     "الوظيفة": ["يعمل", "لا تعمل"],
@@ -85,7 +104,7 @@ DROPDOWN_OPTIONS = {
     "التمرينات الرياضية": ["تم", "لم يتم"],
     "قسط من النوم والراحة": ["تم", "لم يتم"],
     "المتابعة الدورية للحمل": ["تم", "لم يتم"],
-    "التحذير منناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": ["تم", "لم يتم"],
+    "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": ["تم", "لم يتم"],
     "المتاعب البسيطة في الشهور الأولى": ["تم", "لم يتم"],
     "المتاعب في الشهور الأخيرة": ["تم", "لم يتم"],
     "علامات الخطر أثناء الحمل": ["تم", "لم يتم"],
@@ -116,7 +135,6 @@ DROPDOWN_OPTIONS = {
         "إصابة الطفل بالصفراء.", "حدوث مشكلات خلال الولادة “الولادة المتعسرة أو الحمل الحرج”.",
         "وجود عيب خلقي يمنع الطفل عن التنفس أو الرضاعة بشكل طبيعي."
     ],
-    "موعد الزيارة": VISIT_SCHEDULE_OPTIONS,
     "رضاعة طبيعية مع سوائل وأعشاب": ["تم", "لم يتم"],
     "رضاعة طبيعية مع صناعي": ["تم", "لم يتم"],
     "رضاعة لبن صناعي": ["تم", "لم يتم"],
@@ -178,7 +196,7 @@ CHILD_COLUMNS = [
     "رضاعة طبيعية مع سوائل وأعشاب", "رضاعة طبيعية مع صناعي", "رضاعة لبن صناعي", "الوزن (كجم)",
     "الطول (سم)", "محيط الرأس (سم)", "فوائد الرضاعة الطبيعية والأوضاع وعلامات الجوع والشبع",
     "كفاية اللبن وكمية البراز", "إعطاء الجرعة اليومية من فيتامين د", "كيفية رعاية السرة والإهتمام بنظافة الطفل",
-    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النمو", "أهمية الإلتزام بتطعيمات الطفل",
+    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النوم", "أهمية الإلتزام بتطعيمات الطفل",
     "التغذية الصحية للأم المرضعة", "كيفية التعرف على علامات الخطورة", "النمو والتطور الحركي",
     "التطور الإدراكي والمعرفي", "التطور اللغوي", "رسائل التربية الإيجابية", "الأنشطة التحفيزية",
     "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة", "إعطاء الجرعة اليومية من الحديد",
@@ -192,14 +210,13 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر الاحالة(عيادة التطعيمات)", "مصدر الاحالة(نصيحة)"
 ]
 
-# ==================== دوال الحسابات والنمو ====================
+# ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
-    """دالة حساب مقاس رأس الطفل عند الولادة بناءً على الوزن والطول عند الولادة"""
+    """حساب مقاس رأس الطفل عند الولادة تلقائياً"""
     try:
         w = float(weight_kg)
         l = float(length_cm)
         if w > 0 and l > 0:
-            # صيغة تقديرية قائمة على منحنيات القياسات الأنثروبومترية
             head_circ = (l / 2.0) + 9.5 + ((w - 3.3) * 0.8)
             return str(round(head_circ, 1))
     except (ValueError, TypeError):
@@ -207,9 +224,8 @@ def calculate_birth_head_circumference(weight_kg, length_cm):
     return ""
 
 def calculate_current_head_circumference(age_months_val, birth_w, birth_l, current_w, current_l):
-    """دالة حساب محيط رأس الطفل الحالي (سم) اعتماداً على العمر والتطور النموذجي للحجم والوزن والطول"""
+    """حساب محيط رأس الطفل الحالي (سم) تلقائياً"""
     try:
-        # استخراج العمر بالشهور
         age_m = 0.0
         if isinstance(age_months_val, str):
             clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
@@ -224,7 +240,6 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
 
         base_hc = float(calculate_birth_head_circumference(birth_w, birth_l)) if birth_w and birth_l else 34.5
 
-        # حساب معدل الزيادة المتوقعة بحسب الفئة العمرية (نمو الرأس الفسيولوجي)
         if age_m <= 3:
             growth = age_m * 2.0
         elif age_m <= 6:
@@ -234,7 +249,6 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
         else:
             growth = (3 * 2.0) + (3 * 1.0) + (6 * 0.5) + ((age_m - 12) * 0.15)
 
-        # تعديل طفيف بناءً على الوزن والطول الحالي مقارنة بالطول والوزن عند الولادة
         cw = float(current_w) if current_w else 0.0
         bw = float(birth_w) if birth_w else 0.0
         weight_factor = ((cw - bw) * 0.1) if (cw > 0 and bw > 0) else 0.0
@@ -244,6 +258,58 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
     except (ValueError, TypeError):
         pass
     return ""
+
+def get_best_visit_schedule(age_months_val):
+    """تحديد أفضل موعد زيارة من القائمة المنسدلة بناءً على عمر الطفل"""
+    try:
+        if isinstance(age_months_val, str):
+            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
+            if not clean_str:
+                return VISIT_SCHEDULE_OPTIONS[0]
+            age_m = float(clean_str)
+            if "أسبوع" in age_months_val:
+                age_m = age_m / 4.33
+            elif "يوم" in age_months_val:
+                age_m = age_m / 30.44
+        else:
+            age_m = float(age_months_val)
+
+        closest_option = VISIT_SCHEDULE_OPTIONS[0]
+        min_diff = float('inf')
+
+        for option in VISIT_SCHEDULE_OPTIONS:
+            target_m = VISIT_MONTHS_MAP[option]
+            diff = abs(target_m - age_m)
+            if diff < min_diff:
+                min_diff = diff
+                closest_option = option
+        return closest_option
+    except (ValueError, TypeError):
+        return VISIT_SCHEDULE_OPTIONS[0]
+
+def calculate_next_visit_date(current_visit_date_str, current_schedule_option):
+    """حساب تاريخ الزيارة القادمة بالانتقال إلى الموعد التالي وإضافته لتاريخ الزيارة الحالي"""
+    try:
+        if not current_visit_date_str or current_schedule_option not in VISIT_SCHEDULE_OPTIONS:
+            return ""
+
+        current_idx = VISIT_SCHEDULE_OPTIONS.index(current_schedule_option)
+        if current_idx >= len(VISIT_SCHEDULE_OPTIONS) - 1:
+            return "مكتمل جميع الزيارات"
+
+        next_schedule_option = VISIT_SCHEDULE_OPTIONS[current_idx + 1]
+        
+        curr_m = VISIT_MONTHS_MAP[current_schedule_option]
+        next_m = VISIT_MONTHS_MAP[next_schedule_option]
+        diff_months = next_m - curr_m
+
+        base_date = datetime.datetime.strptime(current_visit_date_str, "%Y-%m-%d").date()
+        days_to_add = int(round(diff_months * 30.44))
+        next_date = base_date + datetime.timedelta(days=days_to_add)
+
+        return f"{next_date.strftime('%Y-%m-%d')} ({next_schedule_option})"
+    except Exception:
+        return ""
 
 # ==================== دوال المساعدة ====================
 def clean_digits(val, max_len=None):
@@ -452,7 +518,7 @@ elif menu == "سجل الأطفال":
             if b_mom: st.session_state["c_تاريخ ميلاد الام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم القومى للام", clean_c_id, "c")
 
-    # تحديث الحساب الآلي لمحيط/مقاس الرأس قبل الاستعراض
+    # 1. التحديث الآلي لمقاس رأس الطفل عند الولادة ومحيط الرأس الحالي
     auto_birth_hc = calculate_birth_head_circumference(
         st.session_state.get("c_وزن الطفل عند الولادة"),
         st.session_state.get("c_طول الطفل عند الولادة")
@@ -470,11 +536,24 @@ elif menu == "سجل الأطفال":
     if auto_curr_hc:
         st.session_state["c_محيط الرأس (سم)"] = auto_curr_hc
 
+    # 2. التحديث الآلي لموعد الزيارة وتخطيط الزيارة القادمة
+    auto_visit_schedule = get_best_visit_schedule(st.session_state.get("c_العمر الحالى للطفل (شهور)", 0))
+    if not st.session_state.get("c_موعد الزيارة") or st.session_state.get("c_auto_visit_set") != auto_visit_schedule:
+        st.session_state["c_موعد الزيارة"] = auto_visit_schedule
+        st.session_state["c_auto_visit_set"] = auto_visit_schedule
+
+    auto_next_visit = calculate_next_visit_date(
+        st.session_state.get("c_تاريخ الزيارة", today_str),
+        st.session_state.get("c_موعد الزيارة")
+    )
+    st.session_state["c_تخطيط الزيارة القادمة"] = auto_next_visit
+
+    # عرض الخانات والحقول
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
             continue
 
-        if col_name == "نوع الولادة":
+        elif col_name == "نوع الولادة":
             st.markdown(f"**{col_name}**")
             curr = st.session_state.get(f"c_{col_name}", "")
             c1, c2, c3 = st.columns(3)
@@ -496,6 +575,23 @@ elif menu == "سجل الأطفال":
             chk = st.checkbox(col_name, value=False, key=f"c_chk_{col_name}")
             st.session_state[f"c_{col_name}"] = "نعم" if chk else ""
 
+        elif col_name == "موعد الزيارة":
+            st.markdown(f"**{col_name} [مُقترح آلياً 🎯]**")
+            curr_val = st.session_state.get(f"c_{col_name}", VISIT_SCHEDULE_OPTIONS[0])
+            st.session_state[f"c_{col_name}"] = st.selectbox(
+                "اختر موعد الزيارة", VISIT_SCHEDULE_OPTIONS,
+                index=VISIT_SCHEDULE_OPTIONS.index(curr_val) if curr_val in VISIT_SCHEDULE_OPTIONS else 0,
+                key="c_select_موعد الزيارة"
+            )
+
+        elif col_name in ["مقاس راس الطفل عند الولادة", "محيط الرأس (سم)", "تخطيط الزيارة القادمة"]:
+            st.text_input(
+                f"{col_name} [حساب تلقائي ⚙️]",
+                value=st.session_state.get(f"c_{col_name}", ""),
+                key=f"c_auto_{col_name}",
+                disabled=True
+            )
+
         elif col_name in DROPDOWN_OPTIONS:
             opts = DROPDOWN_OPTIONS[col_name]
             st.markdown(f"**{col_name}**")
@@ -504,9 +600,6 @@ elif menu == "سجل الأطفال":
                 f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
                 key=f"c_radio_{col_name}", horizontal=True
             )
-        # الخانات المحسوبة أوتوماتيكياً (مقاس الرأس عند الولادة ومحيط الرأس الحالي)
-        elif col_name in ["مقاس راس الطفل عند الولادة", "محيط الرأس (سم)"]:
-            st.text_input(f"{col_name} [حساب تلقائي ⚙️]", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_auto_{col_name}", disabled=True)
 
         else:
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
