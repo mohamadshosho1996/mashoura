@@ -40,7 +40,6 @@ h1, h2, h3 {
 }
 footer {visibility: hidden;}
 
-/* تصميم الرسالة التحذيرية الحمراء الكبيرة */
 .danger-alert-box {
     background-color: #FEE2E2;
     border: 3px solid #DC2626;
@@ -62,9 +61,6 @@ footer {visibility: hidden;}
     font-size: 18px;
     font-weight: bold;
 }
-iframe {
-    margin-top: 25px;
-}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -73,8 +69,8 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # ==================== مكون الإدخال الصوتي المتكامل ====================
 def voice_input_button(key_id):
     html_code = f"""
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
-        <button id="btn_{key_id}" onclick="startDictation('{key_id}')" style="
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%; padding-top: 25px;">
+        <button id="btn_{key_id}" type="button" onclick="startDictation('{key_id}')" style="
             background-color: #BE185D;
             color: white;
             border: none;
@@ -100,7 +96,11 @@ def voice_input_button(key_id):
 
             recognition.onresult = function(e) {{
                 var resultText = e.results[0][0].transcript;
-                Streamlit.setComponentValue(resultText);
+                const windowLocation = window.parent.location;
+                window.parent.postMessage({{
+                    type: 'streamlit:setComponentValue',
+                    value: resultText
+                }}, '*');
             }};
 
             recognition.onerror = function(e) {{
@@ -112,27 +112,29 @@ def voice_input_button(key_id):
     }}
     </script>
     """
-    # استدعاء Mcomponent مع تعيين القيمة المنطوقة
-    val = components.html(html_code, height=45)
+    val = components.html(html_code, height=65)
     return val
 
 
 def voice_text_field(label, state_key, placeholder="", is_disabled=False):
-    col_btn, col_input = st.columns([1, 8])
+    col_btn, col_input = st.columns([1, 6])
     with col_btn:
         audio_val = voice_input_button(state_key)
         if audio_val:
             st.session_state[state_key] = str(audio_val)
+
     with col_input:
-        val = st.text_input(
+        current_val = st.session_state.get(state_key, "")
+        input_val = st.text_input(
             label,
-            value=st.session_state.get(state_key, ""),
+            value=current_val,
             key=f"input_{state_key}",
             placeholder=placeholder,
             disabled=is_disabled,
         )
-        st.session_state[state_key] = val
-    return val
+        st.session_state[state_key] = input_val
+
+    return st.session_state[state_key]
 
 
 # ==================== الثوابت وإعدادات البيانات ====================
@@ -799,7 +801,6 @@ elif menu == "سجل الأطفال":
                     st.session_state[f"c_{c_name}"] = str(val)
             st.rerun()
 
-    # تحديث تلقائي للنمو والتطور الحركي
     calculated_motor = calculate_motor_development(
         st.session_state.get("c_العمر الحالى للطفل (شهور)", ""),
         st.session_state.get("c_وزن الطفل عند الولادة", ""),
@@ -1108,7 +1109,6 @@ elif menu == "سجل الأطفال":
             for s, df in all_dfs.items():
                 df.to_excel(writer, sheet_name=s, index=False)
 
-        # التنبيه الأحمر البارز عند التأخر الحركي
         motor_status = final_child_data.get("النمو والتطور الحركي", "")
         if motor_status == "متاخر":
             st.markdown(
