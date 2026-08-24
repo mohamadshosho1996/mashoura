@@ -26,10 +26,11 @@ document.addEventListener('keydown', function(event) {
         const target = event.target;
         if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
             event.preventDefault();
-            const formElements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), button:not([disabled])'));
+            const formElements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])'));
             const index = formElements.indexOf(target);
             if (index > -1 && index + 1 < formElements.length) {
                 formElements[index + 1].focus();
+                formElements[index + 1].click();
             }
         }
     }
@@ -276,6 +277,40 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
     except (ValueError, TypeError):
         pass
     return ""
+
+def calculate_motor_development(age_months_val, birth_w, current_w):
+    """دالة لحساب معدل النمو والتطور الحركي بناءً على العمر والوزن عند الولادة والوزن الحالي"""
+    try:
+        age_m = 0.0
+        if isinstance(age_months_val, str):
+            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
+            if clean_str:
+                age_m = float(clean_str)
+                if "أسبوع" in age_months_val:
+                    age_m = age_m / 4.33
+                elif "يوم" in age_months_val:
+                    age_m = age_m / 30.44
+        else:
+            age_m = float(age_months_val)
+
+        cw = float(current_w) if current_w else 0.0
+        bw = float(birth_w) if birth_w else 0.0
+
+        if age_m <= 0 or cw <= 0 or bw <= 0:
+            return "طبيعى"
+
+        # حساب معدل الزيادة المتوقعة بالوزن شهرياً تقريباً
+        expected_current_weight = bw + (age_m * 0.6) if age_m <= 6 else bw + (6 * 0.6) + ((age_m - 6) * 0.4)
+        
+        ratio = cw / expected_current_weight
+        if ratio < 0.80:
+            return "متاخر"
+        elif ratio > 1.25:
+            return "متقدم"
+        else:
+            return "طبيعى"
+    except Exception:
+        return "طبيعى"
 
 def get_best_visit_schedule(age_months_val):
     try:
@@ -526,6 +561,15 @@ elif menu == "سجل الأطفال":
     if auto_curr_hc:
         st.session_state["c_محيط الرأس (سم)"] = auto_curr_hc
 
+    # الحساب التلقائي لمعدل النمو والتطور الحركي
+    auto_motor_dev = calculate_motor_development(
+        st.session_state.get("c_العمر الحالى للطفل (شهور)"),
+        st.session_state.get("c_وزن الطفل عند الولادة"),
+        st.session_state.get("c_الوزن (كجم)")
+    )
+    if auto_motor_dev:
+        st.session_state["c_النمو والتطور الحركي"] = auto_motor_dev
+
     auto_visit_schedule = get_best_visit_schedule(st.session_state.get("c_العمر الحالى للطفل (شهور)", 0))
     if not st.session_state.get("c_موعد الزيارة") or st.session_state.get("c_auto_visit_set") != auto_visit_schedule:
         st.session_state["c_موعد الزيارة"] = auto_visit_schedule
@@ -580,6 +624,15 @@ elif menu == "سجل الأطفال":
                 disabled=True
             )
 
+        elif col_name == "النمو والتطور الحركي":
+            st.markdown(f"**{col_name} [تحديد آلي بناءً على القياسات ⚙️]**")
+            opts = DROPDOWN_OPTIONS[col_name]
+            curr = st.session_state.get(f"c_{col_name}", opts[0])
+            st.session_state[f"c_{col_name}"] = st.radio(
+                f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
+                key=f"c_radio_{col_name}", horizontal=True
+            )
+
         elif col_name in DROPDOWN_OPTIONS:
             opts = DROPDOWN_OPTIONS[col_name]
             st.markdown(f"**{col_name}**")
@@ -613,6 +666,18 @@ elif menu == "سجل الأطفال":
             else:
                 val_text = st.text_input(col_name, key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_text
+
+    # التحقق من حالة التطور الحركي قبل الحفظ لإظهار مربع تحذير أحمر
+    current_motor_status = st.session_state.get("c_النمو والتطور الحركي", "")
+    if current_motor_status == "متاخر":
+        st.markdown(
+            """
+            <div style="background-color: #FFCDD2; color: #B71C1C; padding: 15px; border-radius: 8px; border: 2px solid #F44336; margin-bottom: 15px; font-weight: bold; text-align: center;">
+                ⚠️ تحذير هام: معدل النمو والتطور الحركي لهذا الطفل (متاخر)! يرجى اتخاذ التدابير اللازمة قبل الحفظ.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
         final_c_data = {}
@@ -655,7 +720,6 @@ elif menu == "استعراض البيانات والداشبورد":
 
         st.dataframe(df_view, use_container_width=True)
 
-        # زر التصدير إلى Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df_view.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -690,13 +754,21 @@ elif menu == "استيراد البيانات (Excel/CSV)":
                 for rec in records_to_insert:
                     cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
                     supabase.table(db_table_name).insert(cleaned_rec).execute()
-                st.success("تم رفع البيانات واستيرادها بنجاح! ✨")
+                st.success("تم رفع واستيراد البيانات بنجاح إلى Supabase! 🚀")
         except Exception as e:
-            st.error(f"حدث خطأ أثناء قراءة أو رفع الملف: {e}")
+            st.error(f"حدث خطأ أثناء استيراد الملف: {e}")
 
 # ==================== 5. إدارة المستخدمين ====================
 elif menu == "إدارة المستخدمين" and st.session_state.role == "admin":
     st.markdown("<h2>⚙️ إدارة المستخدمين وصلاحيات النظام</h2>", unsafe_allow_html=True)
-    st.info("قسم إدارة المستخدمين (متاح للمسؤول فقط). يمكنك إضافة أو تعديل الحسابات حسب الحاجة.")
+    st.info("هنا يمكنك مراجعة وتعديل مستخدمي النظام المعتمدين.")
+    
+    users_data = []
     for username, info in DEFAULT_USERS.items():
-        st.write(f"- **المستخدم:** {username} | **الاسم:** {info['name']} | **الصلاحية:** {info['role']}")
+        users_data.append({
+            "اسم المستخدم": username,
+            "الاسم الظاهر": info["name"],
+            "الصلاحية": info["role"]
+        })
+    df_users = pd.DataFrame(users_data)
+    st.dataframe(df_users, use_container_width=True)
