@@ -2,6 +2,7 @@ import datetime
 import os
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 # ==================== إعدادات الصفحة والتصميم ====================
 st.set_page_config(
@@ -38,9 +39,96 @@ h1, h2, h3 {
     color: #701A75;
 }
 footer {visibility: hidden;}
+
+/* تصميم الرسالة التحذيرية الحمراء الكبيرة */
+.danger-alert-box {
+    background-color: #FEE2E2;
+    border: 3px solid #DC2626;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: 0px 4px 15px rgba(220, 38, 38, 0.3);
+}
+.danger-alert-title {
+    color: #991B1B;
+    font-size: 24px;
+    font-weight: 900;
+    margin-bottom: 8px;
+}
+.danger-alert-text {
+    color: #B91C1C;
+    font-size: 18px;
+    font-weight: bold;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
+
+# ==================== مكون الإدخال الصوتي ====================
+def voice_input_button(key_id, label="🎙️ إدخال صوتي"):
+    html_code = f"""
+    <div style="margin-bottom: 10px;">
+        <button id="btn_{key_id}" onclick="startDictation('{key_id}')" style="
+            background-color: #BE185D;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;">
+            {label}
+        </button>
+        <span id="status_{key_id}" style="margin-right: 10px; color: #701A75; font-size: 13px; font-weight: bold;"></span>
+    </div>
+
+    <script>
+    function startDictation(keyId) {{
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            var recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "ar-EG";
+
+            var statusElem = document.getElementById('status_' + keyId);
+            statusElem.innerText = "جاري الاستماع... 🔴";
+
+            recognition.start();
+
+            recognition.onresult = function(e) {{
+                var resultText = e.results[0][0].transcript;
+                statusElem.innerText = "تم الالتقاط: " + resultText;
+                
+                window.parent.postMessage({{
+                    type: 'streamlit:setComponentValue',
+                    value: resultText
+                }}, '*');
+            }};
+
+            recognition.onerror = function(e) {{
+                statusElem.innerText = "خطأ في التعرف على الصوت";
+            }};
+
+            recognition.onend = function() {{
+                if (statusElem.innerText === "جاري الاستماع... 🔴") {{
+                    statusElem.innerText = "";
+                }}
+            }};
+        }} else {{
+            alert("المتصفح لا يدعم الخاصية الصوتية");
+        }}
+    }}
+    </script>
+    """
+    return components.html(html_code, height=45)
+
 
 # ==================== الثوابت وإعدادات البيانات ====================
 EXCEL_FILE = "template.xlsx"
@@ -388,33 +476,54 @@ def parse_national_id(nat_id):
     return "", ""
 
 
+# ==================== دالة التطور الحركي بناءً على الوزن والطول ====================
 def calculate_motor_development(
     age_str, weight_birth, length_birth, weight_current, length_current
 ):
     try:
+        w_b = float(weight_birth) if weight_birth else 3.2
+        l_b = float(length_birth) if length_birth else 50.0
+        w_c = float(weight_current) if weight_current else w_b
+        l_c = float(length_current) if length_current else l_b
+
         if not age_str:
-            return "طبيعى"
-        if "يوم" in age_str or "أسبوع" in age_str:
             age_months = 0.5
+        elif "يوم" in age_str:
+            age_months = 0.2
+        elif "أسبوع" in age_str:
+            weeks = float(
+                "".join(filter(lambda x: x.isdigit() or x == ".", age_str)) or 1
+            )
+            age_months = weeks / 4.0
         else:
             age_months = float(
                 "".join(filter(lambda x: x.isdigit() or x == ".", age_str)) or 1
             )
 
-        w_curr = float(weight_current) if weight_current else 3.5
-
-        if age_months <= 1:
-            expected_weight = 3.3 + (age_months * 0.8)
+        # معدل زيادة الوزن المتوقع شهرياً حسب العمر (معايير منظمة الصحة العالمية)
+        if age_months <= 3:
+            expected_w_gain = age_months * 0.8
+            expected_l_gain = age_months * 3.5
+        elif age_months <= 6:
+            expected_w_gain = (3 * 0.8) + ((age_months - 3) * 0.6)
+            expected_l_gain = (3 * 3.5) + ((age_months - 3) * 2.0)
         elif age_months <= 12:
-            expected_weight = 3.0 + (age_months * 0.75)
+            expected_w_gain = (3 * 0.8) + (3 * 0.6) + ((age_months - 6) * 0.4)
+            expected_l_gain = (3 * 3.5) + (3 * 2.0) + ((age_months - 6) * 1.5)
         else:
-            expected_weight = 10.0 + ((age_months - 12) * 0.2)
+            expected_w_gain = 4.2 + ((age_months - 12) * 0.2)
+            expected_l_gain = 20.0 + ((age_months - 12) * 1.0)
 
-        diff_ratio = w_curr / expected_weight
+        exp_weight = w_b + expected_w_gain
+        exp_length = l_b + expected_l_gain
 
-        if diff_ratio < 0.82:
+        weight_ratio = w_c / exp_weight
+        length_ratio = l_c / exp_length
+        combined_score = (weight_ratio * 0.6) + (length_ratio * 0.4)
+
+        if combined_score < 0.83:
             return "متاخر"
-        elif diff_ratio > 1.25:
+        elif combined_score > 1.22:
             return "متقدم"
         else:
             return "طبيعى"
@@ -439,15 +548,20 @@ def get_existing_data(nat_id, sheet_name, id_column):
 
 
 if not os.path.exists(EXCEL_FILE):
-    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-        pd.DataFrame(columns=PREGNANT_COLUMNS).to_excel(
-            writer, sheet_name="المشورة الاسرية للحامل", index=False
-        )
-        pd.DataFrame(columns=CHILD_COLUMNS).to_excel(
-            writer, sheet_name="سجل المشورة للاطفال", index=False
+    try:
+        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
+            pd.DataFrame(columns=PREGNANT_COLUMNS).to_excel(
+                writer, sheet_name="المشورة الاسرية للحامل", index=False
+            )
+            pd.DataFrame(columns=CHILD_COLUMNS).to_excel(
+                writer, sheet_name="سجل المشورة للاطفال", index=False
+            )
+    except ModuleNotFoundError:
+        st.error(
+            "تنبيه: مكتبة openpyxl غير مضافة في requirements.txt الخاص بالمشروع!"
         )
 
-# ==================== تسجيل الدخول والصلاحيات ====================
+# ==================== تسجيل الدخول ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user = None
@@ -487,7 +601,7 @@ if not st.session_state.logged_in:
                 st.error("كلمة المرور غير صحيحة!")
     st.stop()
 
-# ==================== القائمة والخيارات المشتركة ====================
+# ==================== القائمة والخيارات ====================
 menu_options = [
     "الصفحة الرئيسية",
     "سجل الحوامل",
@@ -526,7 +640,6 @@ if menu == "الصفحة الرئيسية":
         "<h1>✨ مرحباً بكِ في نظام المشورة الأسرية الشامل ✨</h1>",
         unsafe_allow_html=True,
     )
-    st.info("💡 **ملاحظة للإدخال الصوتي:** يمكنكِ استخدام أيقونة الميكروفون المتاحة داخل لوحة مفاتيح الموبايل (مثل Gboard) للإملاء الصوتي المباشر داخل أي حقل نصي بكل سهولة وراحة!")
 
 # ==================== 2. سجل الحوامل ====================
 elif menu == "سجل الحوامل":
@@ -548,7 +661,6 @@ elif menu == "سجل الحوامل":
         if col_name == "نوع الولادة":
             st.markdown(f"**{col_name}**")
             current_val = st.session_state.get(f"p_{col_name}", "")
-
             c_opt1, c_opt2, c_opt3 = st.columns(3)
             with c_opt1:
                 chk_nat = st.checkbox(
@@ -568,15 +680,9 @@ elif menu == "سجل الحوامل":
                     value=(current_val == "لا يوجد" or current_val == ""),
                     key="p_birth_none",
                 )
-
-            selected_birth = ""
-            if chk_nat:
-                selected_birth = "طبيعى"
-            elif chk_ces:
-                selected_birth = "قيصرى"
-            elif chk_none:
-                selected_birth = "لا يوجد"
-
+            selected_birth = (
+                "طبيعى" if chk_nat else ("قيصرى" if chk_ces else "لا يوجد")
+            )
             form_data[col_name] = selected_birth
             st.session_state[f"p_{col_name}"] = selected_birth
 
@@ -594,6 +700,8 @@ elif menu == "سجل الحوامل":
             form_data[col_name] = chosen_choice
             st.session_state[f"p_{col_name}"] = chosen_choice
         else:
+            voice_input_button(f"p_btn_{col_name}")
+
             if col_name == "الرقم القومى":
                 raw_val = st.text_input(col_name, key=f"p_{col_name}")
                 cleaned_val = clean_digits(raw_val, 14)
@@ -668,6 +776,7 @@ elif menu == "سجل الأطفال":
             else:
                 st.session_state[f"c_{col}"] = ""
 
+    voice_input_button("c_btn_الرقم القومى للام")
     raw_nat_id_mom = st.text_input(
         "الرقم القومى للام (اختياري)", key="c_الرقم القومى للام_input"
     )
@@ -695,6 +804,16 @@ elif menu == "سجل الأطفال":
                     st.session_state[f"c_{c_name}"] = str(val)
             st.rerun()
 
+    # تحديث تلقائي مستمر للنمو والتطور الحركي
+    calculated_motor = calculate_motor_development(
+        st.session_state.get("c_العمر الحالى للطفل (شهور)", ""),
+        st.session_state.get("c_وزن الطفل عند الولادة", ""),
+        st.session_state.get("c_طول الطفل عند الولادة", ""),
+        st.session_state.get("c_الوزن (كجم)", ""),
+        st.session_state.get("c_الطول (سم)", ""),
+    )
+    st.session_state["c_النمو والتطور الحركي"] = calculated_motor
+
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
             continue
@@ -702,7 +821,6 @@ elif menu == "سجل الأطفال":
         if col_name == "نوع الولادة":
             st.markdown(f"**{col_name}**")
             current_val = st.session_state.get(f"c_{col_name}", "")
-
             c_opt1, c_opt2, c_opt3 = st.columns(3)
             with c_opt1:
                 chk_nat = st.checkbox(
@@ -722,22 +840,15 @@ elif menu == "سجل الأطفال":
                     value=(current_val == "لا يوجد" or current_val == ""),
                     key="c_birth_none",
                 )
-
-            selected_birth = ""
-            if chk_nat:
-                selected_birth = "طبيعى"
-            elif chk_ces:
-                selected_birth = "قيصرى"
-            elif chk_none:
-                selected_birth = "لا يوجد"
-
+            selected_birth = (
+                "طبيعى" if chk_nat else ("قيصرى" if chk_ces else "لا يوجد")
+            )
             st.session_state[f"c_{col_name}"] = selected_birth
 
         elif col_name == "رضاعة طبيعية مطلقة":
             st.markdown(f"**{col_name}**")
             c1, c2, c3 = st.columns(3)
             current_val = st.session_state.get(f"c_{col_name}", "")
-
             with c1:
                 chk_3 = st.checkbox(
                     "3 شهور", value=(current_val == "3 شهور"), key="c_bf_ex_3"
@@ -750,15 +861,9 @@ elif menu == "سجل الأطفال":
                 chk_6 = st.checkbox(
                     "6 شهور", value=(current_val == "6 شهور"), key="c_bf_ex_6"
                 )
-
-            selected_bf_ex = ""
-            if chk_3:
-                selected_bf_ex = "3 شهور"
-            elif chk_4:
-                selected_bf_ex = "4 شهور"
-            elif chk_6:
-                selected_bf_ex = "6 شهور"
-
+            selected_bf_ex = (
+                "3 شهور" if chk_3 else ("4 شهور" if chk_4 else ("6 شهور" if chk_6 else ""))
+            )
             st.session_state[f"c_{col_name}"] = selected_bf_ex
 
         elif col_name in YES_NO_CHECKBOX_FIELDS:
@@ -767,17 +872,6 @@ elif menu == "سجل الأطفال":
 
         elif col_name in DROPDOWN_OPTIONS:
             options = DROPDOWN_OPTIONS[col_name]
-
-            if col_name == "النمو والتطور الحركي":
-                auto_motor = calculate_motor_development(
-                    st.session_state.get("c_العمر الحالى للطفل (شهور)", ""),
-                    st.session_state.get("c_وزن الطفل عند الولادة", ""),
-                    st.session_state.get("c_طول الطفل عند الولادة", ""),
-                    st.session_state.get("c_الوزن (كجم)", ""),
-                    st.session_state.get("c_الطول (سم)", ""),
-                )
-                if not st.session_state.get(f"c_{col_name}"):
-                    st.session_state[f"c_{col_name}"] = auto_motor
 
             if col_name == "موعد الزيارة":
                 auto_visit_choice = VISIT_SCHEDULE_OPTIONS[0]
@@ -839,6 +933,8 @@ elif menu == "سجل الأطفال":
             st.session_state[f"c_{col_name}"] = chosen_choice
 
         else:
+            voice_input_button(f"c_btn_{col_name}")
+
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
                 raw_val = st.text_input(col_name, key=f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
@@ -1021,6 +1117,20 @@ elif menu == "سجل الأطفال":
         with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
             for s, df in all_dfs.items():
                 df.to_excel(writer, sheet_name=s, index=False)
+
+        # التنبيه الأحمر البارز عند التأخر الحركي
+        motor_status = final_child_data.get("النمو والتطور الحركي", "")
+        if motor_status == "متاخر":
+            st.markdown(
+                """
+                <div class="danger-alert-box">
+                    <div class="danger-alert-title">🚨 تنبيه حرج: الطفل متأخر في النمو! 🚨</div>
+                    <div class="danger-alert-text">بناءً على قياسات الوزن والطول مقارنة بالعُمر والحالة عند الولادة، يبدو أن الطفل يعاني من تأخر في النمو والتطور الحركي. يرجى المتابعة والتحويل للتقييم الطبي الفوري.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         st.success("تم حفظ بيانات الطفل بنجاح! ✨")
 
 # ==================== 4. استعراض البيانات والداشبورد ====================
