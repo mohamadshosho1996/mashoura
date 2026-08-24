@@ -1,8 +1,16 @@
 import datetime
+import math
 import os
+import io
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
+from supabase import create_client, Client
+
+# ==================== إعدادات Supabase ====================
+# يفضل استخدام st.secrets لعدم كشف المفاتيح
+SUPABASE_URL = "https://ndxzbpmdvqjinpjrbytd.supabase.co"
+SUPABASE_KEY = "sb_publishable_ubwXt_RivsCvAT6nFE0hoQ_3DD5aYOK"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==================== إعدادات الصفحة والتصميم ====================
 st.set_page_config(
@@ -11,6 +19,25 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+enter_navigation_js = """
+<script>
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        const target = event.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+            event.preventDefault();
+            const formElements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), button:not([disabled])'));
+            const index = formElements.indexOf(target);
+            if (index > -1 && index + 1 < formElements.length) {
+                formElements[index + 1].focus();
+            }
+        }
+    }
+});
+</script>
+"""
+st.components.v1.html(enter_navigation_js, height=0, width=0)
 
 custom_css = """
 <style>
@@ -39,107 +66,11 @@ h1, h2, h3 {
     color: #701A75;
 }
 footer {visibility: hidden;}
-
-.danger-alert-box {
-    background-color: #FEE2E2;
-    border: 3px solid #DC2626;
-    border-radius: 12px;
-    padding: 20px;
-    margin-top: 15px;
-    margin-bottom: 15px;
-    text-align: center;
-    box-shadow: 0px 4px 15px rgba(220, 38, 38, 0.3);
-}
-.danger-alert-title {
-    color: #991B1B;
-    font-size: 24px;
-    font-weight: 900;
-    margin-bottom: 8px;
-}
-.danger-alert-text {
-    color: #B91C1C;
-    font-size: 18px;
-    font-weight: bold;
-}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-
-# ==================== مكون الإدخال الصوتي المتكامل ====================
-def voice_input_button(key_id):
-    html_code = f"""
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; padding-top: 25px;">
-        <button id="btn_{key_id}" type="button" onclick="startDictation('{key_id}')" style="
-            background-color: #BE185D;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;">
-            🎙️
-        </button>
-    </div>
-
-    <script>
-    function startDictation(keyId) {{
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
-            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            var recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = "ar-EG";
-
-            recognition.start();
-
-            recognition.onresult = function(e) {{
-                var resultText = e.results[0][0].transcript;
-                const windowLocation = window.parent.location;
-                window.parent.postMessage({{
-                    type: 'streamlit:setComponentValue',
-                    value: resultText
-                }}, '*');
-            }};
-
-            recognition.onerror = function(e) {{
-                alert("خطأ في استقبال الصوت");
-            }};
-        }} else {{
-            alert("المتصفح لا يدعم التعرف على الصوت");
-        }}
-    }}
-    </script>
-    """
-    val = components.html(html_code, height=65)
-    return val
-
-
-def voice_text_field(label, state_key, placeholder="", is_disabled=False):
-    col_btn, col_input = st.columns([1, 6])
-    with col_btn:
-        audio_val = voice_input_button(state_key)
-        if audio_val:
-            st.session_state[state_key] = str(audio_val)
-
-    with col_input:
-        current_val = st.session_state.get(state_key, "")
-        input_val = st.text_input(
-            label,
-            value=current_val,
-            key=f"input_{state_key}",
-            placeholder=placeholder,
-            disabled=is_disabled,
-        )
-        st.session_state[state_key] = input_val
-
-    return st.session_state[state_key]
-
-
-# ==================== الثوابت وإعدادات البيانات ====================
-EXCEL_FILE = "template.xlsx"
-
+# ==================== الثوابت ====================
 DEFAULT_USERS = {
     "admin": {"pass": "admin123", "role": "admin", "name": "د. شيماء 🌸"},
     "user1": {"pass": "1234", "role": "user", "name": "د. علا 🎀"},
@@ -148,50 +79,37 @@ DEFAULT_USERS = {
 }
 
 VISIT_SCHEDULE_OPTIONS = [
-    "الاسبوع الاول",
-    "عمر شهرين",
-    "عمر 4 شهور",
-    "عمر 6 شهور",
-    "عمر 9 شهور",
-    "عمر 12 شهر",
-    "عمر 18 شهر",
-    "عمر سنتين",
-    "عمر سنتين ونصف",
-    "عمر 3 سنين",
-    "عمر 3 سنين ونصف",
-    "عمر 4 سنين",
-    "عمر 4 سنين ونصف",
-    "عمر 5 سنين",
-    "عمر 5 سنين ونصف",
-    "عمر 6 سنين",
+    "الاسبوع الاول", "عمر شهرين", "عمر 4 شهور", "عمر 6 شهور",
+    "عمر 9 شهور", "عمر 12 شهر", "عمر 18 شهر", "عمر سنتين",
+    "عمر سنتين ونصف", "عمر 3 سنين", "عمر 3 سنين ونصف", "عمر 4 سنين",
+    "عمر 4 سنين ونصف", "عمر 5 سنين", "عمر 5 سنين ونصف", "عمر 6 سنين"
 ]
 
+VISIT_MONTHS_MAP = {
+    "الاسبوع الاول": 0.25,
+    "عمر شهرين": 2,
+    "عمر 4 شهور": 4,
+    "عمر 6 شهور": 6,
+    "عمر 9 شهور": 9,
+    "عمر 12 شهر": 12,
+    "عمر 18 شهر": 18,
+    "عمر سنتين": 24,
+    "عمر سنتين ونصف": 30,
+    "عمر 3 سنين": 36,
+    "عمر 3 سنين ونصف": 42,
+    "عمر 4 سنين": 48,
+    "عمر 4 سنين ونصف": 54,
+    "عمر 5 سنين": 60,
+    "عمر 5 سنين ونصف": 66,
+    "عمر 6 سنين": 72
+}
+
 DROPDOWN_OPTIONS = {
-    "مستوى التعليم": [
-        "امى",
-        "يجيد القراءة",
-        "مؤهل متوسط",
-        "فوق متوسط",
-        "مؤهل عالى",
-    ],
+    "مستوى التعليم": ["امى", "يجيد القراءة", "مؤهل متوسط", "فوق متوسط", "مؤهل عالى"],
     "الوظيفة": ["يعمل", "لا تعمل"],
     "قرابة بين الزوجين": ["نعم", "لا"],
-    "وسيلة تنظيم الأسرة المستخدمة سابقا": [
-        "توجد",
-        "مرغوب",
-        "غير مرغوب",
-    ],
-    "شهر الحمل": [
-        "الشهر الاول",
-        "الشهر الثانى",
-        "الشهر الثالث",
-        "الشهر الرابع",
-        "الشهر الخامس",
-        "الشهر السادس",
-        "الشهر السابع",
-        "الشهر الثامن",
-        "الشهر التاسع",
-    ],
+    "وسيلة تنظيم الأسرة المستخدمة سابقا": ["توجد", "مرغوب", "غير مرغوب"],
+    "شهر الحمل": [f"الشهر {x}" for x in ["الاول", "الثانى", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع"]],
     "أمراض مزمنة: إرتفاع ضغط الدم": ["تم", "لم يتم"],
     "أمراض مزمنة: السكر": ["تم", "لم يتم"],
     "أمراض مزمنة: إضطرابات الغدة": ["تم", "لم يتم"],
@@ -207,18 +125,12 @@ DROPDOWN_OPTIONS = {
     "التمرينات الرياضية": ["تم", "لم يتم"],
     "قسط من النوم والراحة": ["تم", "لم يتم"],
     "المتابعة الدورية للحمل": ["تم", "لم يتم"],
-    "التحذير منناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": [
-        "تم",
-        "لم يتم",
-    ],
+    "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة": ["تم", "لم يتم"],
     "المتاعب البسيطة في الشهور الأولى": ["تم", "لم يتم"],
     "المتاعب في الشهور الأخيرة": ["تم", "لم يتم"],
     "علامات الخطر أثناء الحمل": ["تم", "لم يتم"],
     "مشاكل الولادة المبكرة وكيفية تجنبها": ["تم", "لم يتم"],
-    "حركة الجنين / معرفة جنس الجنين/ تمييز الأصوات من قبل الجنين": [
-        "تم",
-        "لم يتم",
-    ],
+    "حركة الجنين / معرفة جنس الجنين/ تمييز الأصوات من قبل الجنين": ["تم", "لم يتم"],
     "تغير لون الجلد حول الحلمة وظهور بعض إفرازات من الثدي": ["تم", "لم يتم"],
     "إرتداء الملابس الفضفاضة المريحة": ["تم", "لم يتم"],
     "الإستعداد للولادة / تحضير ملابس المولود ، الخ": ["تم", "لم يتم"],
@@ -232,49 +144,25 @@ DROPDOWN_OPTIONS = {
     "وسائل تنظيم الأسرة": ["تم", "لم يتم"],
     "إستخدام وسيلة بعد الولادة مباشرة": ["تم", "لم يتم"],
     "التطور العصبي والنفسي للطفل": ["طبيعى", "متقدم", "متاخر"],
-    "مستوى التعليم للام": [
-        "امى",
-        "يجيد القراءة",
-        "مؤهل متوسط",
-        "فوق متوسط",
-        "مؤهل عالى",
-    ],
-    "مستوى التعليم للاب": [
-        "امى",
-        "يجيد القراءة",
-        "مؤهل متوسط",
-        "فوق متوسط",
-        "مؤهل عالى",
-    ],
+    "مستوى التعليم للام": ["امى", "يجيد القراءة", "مؤهل متوسط", "فوق متوسط", "مؤهل عالى"],
+    "مستوى التعليم للاب": ["امى", "يجيد القراءة", "مؤهل متوسط", "فوق متوسط", "مؤهل عالى"],
     "الوظيفة للام": ["يعمل", "لا تعمل"],
     "مكان الولادة": ["المستشفى", "المنزل"],
     "سبب دخول الحضانة": [
-        "انخفاض وزن الطفل.",
-        "احتياج الطفل لأدوية محددة بهذا الوقت.",
-        "صعوبة شديدة في التنفس لعدم اكتمال نمو الرئتين.",
-        "ارتفاع درجة حرارة جسم الرضيع.",
-        "تعطل العمليات الحيوية بجسم الطفل.",
-        "انخفاض معدل الجلوكوز في دم الطفل.",
-        "معاناة الرضيع مشكلات في الجهاز الهضمي.",
-        "إصابة الطفل بعدوى في الدم.",
-        "إصابة الطفل بالصفراء.",
-        "حدوث مشكلات خلال الولادة “الولادة المتعسرة أو الحمل الحرج”.",
-        "وجود عيب خلقي يمنع الطفل عن التنفس أو الرضاعة بشكل طبيعي.",
+        "انخفاض وزن الطفل.", "احتياج الطفل لأدوية محددة بهذا الوقت.",
+        "صعوبة شديدة في التنفس لعدم اكتمال نمو الرئتين.", "ارتفاع درجة حرارة جسم الرضيع.",
+        "تعطل العمليات الحيوية بجسم الطفل.", "انخفاض معدل الجلوكوز في دم الطفل.",
+        "معاناة الرضيع مشكلات في الجهاز الهضمي.", "إصابة الطفل بعدوى في الدم.",
+        "إصابة الطفل بالصفراء.", "حدوث مشكلات خلال الولادة “الولادة المتعسرة أو الحمل الحرج”.",
+        "وجود عيب خلقي يمنع الطفل عن التنفس أو الرضاعة بشكل طبيعي."
     ],
-    "موعد الزيارة": VISIT_SCHEDULE_OPTIONS,
     "رضاعة طبيعية مع سوائل وأعشاب": ["تم", "لم يتم"],
     "رضاعة طبيعية مع صناعي": ["تم", "لم يتم"],
     "رضاعة لبن صناعي": ["تم", "لم يتم"],
     "دخول الحضانة": ["تم", "لم يتم"],
     "ملامسة الجلد فى الساعة الذهبية الأولى": ["تم", "لم يتم"],
     "الرضاعة الطبيعية فى الساعة الذهبية الأولى": ["تم", "لم يتم"],
-    "موقف إستخدام وسيلة تنظيم أسرة": [
-        "توجد",
-        "مرغوب",
-        "غير مرغوب",
-        "حدث",
-        "لم يحدث",
-    ],
+    "موقف إستخدام وسيلة تنظيم أسرة": ["توجد", "مرغوب", "غير مرغوب", "حدث", "لم يحدث"],
     "الحمل الجديد": ["مرغوب", "غير مرغوب"],
     "الخدمات الغير ملباه": ["يوجد"],
     "تحويل الى عيادة تنظيم الاسره": ["تم", "لم يتم"],
@@ -283,182 +171,177 @@ DROPDOWN_OPTIONS = {
     "التطور اللغوي": ["طبيعى", "متقدم", "متاخر"],
     "رسائل التربية الإيجابية": ["تم", "لم يتم"],
     "الأنشطة التحفيزية": ["تم", "لم يتم"],
-    (
-        "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة"
-    ): ["تم", "لم يتم"],
+    "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة": ["تم", "لم يتم"],
     "إعطاء الجرعة اليومية من الحديد": ["يوجد"],
-    "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة": [
-        "تم التوعيه",
-        "لم يتم التوعيه",
-    ],
+    "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة": ["تم التوعيه", "لم يتم التوعيه"],
     "إعطاء الجرعة اليومية من فيتامين د": ["يوجد"],
     "كيفية رعاية السرة والإهتمام بنظافة الطفل": ["تم", "لم يتم"],
-    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النمو": [
-        "تم",
-        "لم يتم",
-    ],
+    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النوم": ["تم", "لم يتم"],
     "أهمية الإلتزام بتطعيمات الطفل": ["تم", "لم يتم"],
     "التغذية الصحية للأم المرضعة": ["تم", "لم يتم"],
     "كيفية التعرف على علامات الخطورة": ["تم", "لم يتم"],
-    "فوائد الرضاعة الطبيعية والأوضاع وعلامات الجوع والشبع": [
-        "تم",
-        "لم يتم",
-    ],
-    "كفاية اللبن وكمية البراز": ["تم", "لم يتم"],
+    "فوائد الرضاعة الطبيعية والأوضاع وعلامات الجوع والشبع": ["تم", "لم يتم"],
+    "كفاية اللبن وكمية البراز": ["تم", "لم يتم"]
 }
 
 PREGNANT_COLUMNS = [
-    "تاريخ التسجيل",
-    "اسم المستخدم",
-    "الاسم",
-    "العنوان",
-    "الرقم القومى",
-    "رقم الموبايل",
-    "العمر الحالى",
-    "السن عند الزواج",
-    "السن عند الحمل الاول",
-    "مستوى التعليم",
-    "الوظيفة",
-    "تاريخ اخر دورة شهرية",
-    "قرابة بين الزوجين",
-    "عدد مرات الحمل",
-    "عدد مرات الاجهاض",
-    "عدد الاطفال",
-    "المدة بين اخر حملين",
-    "نوع الولادة",
-    "أمراض مزمنة: إرتفاع ضغط الدم",
-    "أمراض مزمنة: السكر",
-    "أمراض مزمنة: إضطرابات الغدة",
-    "أمراض مزمنة: الأنيميا",
-    "أمراض مزمنة: اخرى",
-    'مكملات "قبل": حمض الفوليك',
-    'مكملات "قبل": الحديد',
-    'مكملات "قبل": الكالسيوم',
-    'مكملات "أثناء": حمض الفوليك',
-    'مكملات "أثناء": الحديد',
-    'مكملات "أثناء": الكالسيوم',
-    "وسيلة تنظيم الأسرة المستخدمة سابقا",
-    "مدة إستخدام الوسيلة السابقة",
-    "شهر الحمل",
-    "التاريخ الزيارة",
-    "التغذية السليمة",
-    "المكملات الغذائية",
-    "التمرينات الرياضية",
-    "قسط من النوم والراحة",
-    "المتابعة الدورية للحمل",
-    "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة",
-    "المتاعب البسيطة في الشهور الأولى",
-    "المتاعب في الشهور الأخيرة",
-    "علامات الخطر أثناء الحمل",
-    "مشاكل الولادة المبكرة وكيفية تجنبها",
-    "حركة الجنين / معرفة جنس الجنين/ تمييز الأصوات من قبل الجنين",
-    "تغير لون الجلد حول الحلمة وظهور بعض إفرازات من الثدي",
-    "إرتداء الملابس الفضفاضة المريحة",
-    "الإستعداد للولادة / تحضير ملابس المولود ، الخ",
-    "علامات الولادة",
-    "مميزات الولادة الطبيعية",
-    "الساعة الذهبية الأولى",
-    "ملامسة الجلد للجلد",
-    "البداية المبكرة للرضاعة الطبيعية",
-    "الرضاعة الطبيعية المطلقة",
-    "أهمية المباعدة",
-    "وسائل تنظيم الأسرة",
-    "إستخدام وسيلة بعد الولادة مباشرة",
-    "التطور العصبي والنفسي للطفل",
-    "ملاحظات/ توصيات",
-    "تخطيط الزيارة القادمة",
-    "المتابعة ما بعد الولادة",
+    "تاريخ التسجيل", "اسم المستخدم", "تاريخ الزيارة", "الرقم القومى للزوجة", "اسم الزوجة",
+    "تاريخ الميلاد", "السن", "رقم الموبايل", "الرقم القومى للزوج", "اسم الزوج", "تاريخ ميلاد الزوج",
+    "مستوى التعليم", "الوظيفة", "قرابة بين الزوجين", "عدد مرات الحمل", "عدد مرات الولادة",
+    "عدد الاطفال الأحياء", "عمر أصغر طفل", "وسيلة تنظيم الأسرة المستخدمة سابقا", "شهر الحمل",
+    "أمراض مزمنة: إرتفاع ضغط الدم", "أمراض مزمنة: السكر", "أمراض مزمنة: إضطرابات الغدة",
+    "أمراض مزمنة: الأنيميا", 'مكملات "قبل": حمض الفوليك', 'مكملات "قبل": الحديد', 'مكملات "قبل": الكالسيوم',
+    'مكملات "أثناء": حمض الفوليك', 'مكملات "أثناء": الحديد', 'مكملات "أثناء": الكالسيوم',
+    "التغذية السليمة", "المكملات الغذائية", "التمرينات الرياضية", "قسط من النوم والراحة",
+    "المتابعة الدورية للحمل", "التحذير من تناول الأدوية بدون إستشارة طبيب والتعرض للتدخين والأبخرة",
+    "المتاعب البسيطة في الشهور الأولى", "المتاعب في الشهور الأخيرة", "علامات الخطر أثناء الحمل",
+    "مشاكل الولادة المبكرة وكيفية تجنبها", "حركة الجنين / معرفة جنس الجنين/ تمييز الأصوات من قبل الجنين",
+    "تغير لون الجلد حول الحلمة وظهور بعض إفرازات من الثدي", "إرتداء الملابس الفضفاضة المريحة",
+    "الإستعداد للولادة / تحضير ملابس المولود ، الخ", "علامات الولادة", "مميزات الولادة الطبيعية",
+    "الساعة الذهبية الأولى", "ملامسة الجلد للجلد", "البداية المبكرة للرضاعة الطبيعية",
+    "الرضاعة الطبيعية المطلقة", "أهمية المباعدة", "وسائل تنظيم الأسرة", "إستخدام وسيلة بعد الولادة مباشرة",
+    "التطور العصبي والنفسي للطفل"
 ]
 
 CHILD_COLUMNS = [
-    "تاريخ التسجيل",
-    "اسم المستخدم",
-    "تاريخ اول زيارة",
-    "رقم الحالة",
-    "اسم الام",
-    "الرقم القومى للام",
-    "رقم الموبايل للام",
-    "تاريخ ميلاد الام",
-    "مستوى التعليم للام",
-    "عدد الاطفال لدى الام",
-    "المدة بين اخر حملين",
-    "الوظيفة للام",
-    "الرقم القومى للاب",
-    "رقم الموبايل للاب",
-    "اسم الاب",
-    "مستوى التعليم للاب",
-    "اسم الطفل",
-    "تاريخ الميلاد للطفل",
-    "العمر الحالى للطفل (شهور)",
-    "العمر الرحمى للطفل (أسابيع)",
-    "مكان المتابعة (وحدة)",
-    "مكان المتابعة (مستشفى)",
-    "مكان المتابعة (اخرى)",
-    "مصدر الاحالة(مستشفى الولادة)",
-    "مصدر الاحالة (عيادة خاصة)",
-    "مصدر الاحالة(عيادة التطعيمات)",
-    "مصدر الاحالة(نصيحة)",
-    "نوع الولادة",
-    "مكان الولادة",
-    "وزن الطفل عند الولادة",
-    "طول الطفل عند الولادة",
-    "مقاس راس الطفل عند الولادة",
-    "دخول الحضانة",
-    "سبب دخول الحضانة",
-    "مدة البقاء فى الحضانة",
-    "ملامسة الجلد فى الساعة الذهبية الأولى",
-    "الرضاعة الطبيعية فى الساعة الذهبية الأولى",
-    "موعد الزيارة",
-    "تاريخ الزيارة",
-    "رضاعة طبيعية مطلقة",
-    "رضاعة طبيعية مع سوائل وأعشاب",
-    "رضاعة طبيعية مع صناعي",
-    "رضاعة لبن صناعي",
-    "الوزن (كجم)",
-    "الطول (سم)",
-    "محيط الرأس (سم)",
-    "فوائد الرضاعة الطبيعية والأوضاع وعلامات الجوع والشبع",
-    "كفاية اللبن وكمية البراز",
-    "إعطاء الجرعة اليومية من فيتامين د",
-    "كيفية رعاية السرة والإهتمام بنظافة الطفل",
-    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النمو",
-    "أهمية الإلتزام بتطعيمات الطفل",
-    "التغذية الصحية للأم المرضعة",
-    "كيفية التعرف على علامات الخطورة",
-    "النمو والتطور الحركي",
-    "التطور الإدراكي والمعرفي",
-    "التطور اللغوي",
-    "رسائل التربية الإيجابية",
-    "الأنشطة التحفيزية",
-    "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة",
-    "إعطاء الجرعة اليومية من الحديد",
-    "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة",
-    "موقف إستخدام وسيلة تنظيم أسرة",
-    "الحمل الجديد",
-    "الخدمات الغير ملباه",
-    "تحويل الى عيادة تنظيم الاسره",
-    "تخطيط الزيارة القادمة",
+    "تاريخ التسجيل", "اسم المستخدم", "تاريخ اول زيارة", "رقم الحالة", "اسم الام", "الرقم القومى للام",
+    "رقم الموبايل للام", "تاريخ ميلاد الام", "مستوى التعليم للام", "عدد الاطفال لدى الام",
+    "المدة بين اخر حملين", "الوظيفة للام", "الرقم القومى للاب", "رقم الموبايل للاب", "اسم الاب",
+    "مستوى التعليم للاب", "اسم الطفل", "تاريخ الميلاد للطفل", "العمر الحالى للطفل (شهور)",
+    "العمر الرحمى للطفل (أسابيع)", "مكان المتابعة (وحدة)", "مكان المتابعة (مستشفى)",
+    "مكان المتابعة (اخرى)", "مصدر الاحالة(مستشفى الولادة)", "مصدر الاحالة (عيادة خاصة)",
+    "مصدر الاحالة(عيادة التطعيمات)", "مصدر الاحالة(نصيحة)", "نوع الولادة", "مكان الولادة",
+    "وزن الطفل عند الولادة", "طول الطفل عند الولادة", "مقاس راس الطفل عند الولادة", "دخول الحضانة",
+    "سبب دخول الحضانة", "مدة البقاء فى الحضانة", "ملامسة الجلد فى الساعة الذهبية الأولى",
+    "الرضاعة الطبيعية فى الساعة الذهبية الأولى", "موعد الزيارة", "تاريخ الزيارة", "رضاعة طبيعية مطلقة",
+    "رضاعة طبيعية مع سوائل وأعشاب", "رضاعة طبيعية مع صناعي", "رضاعة لبن صناعي", "الوزن (كجم)",
+    "الطول (سم)", "محيط الرأس (سم)", "فوائد الرضاعة الطبيعية والأوضاع وعلامات الجوع والشبع",
+    "كفاية اللبن وكمية البراز", "إعطاء الجرعة اليومية من فيتامين د", "كيفية رعاية السرة والإهتمام بنظافة الطفل",
+    "البطاقة الصحية وأهمية المتابعة الدورية ومنحنيات النوم", "أهمية الإلتزام بتطعيمات الطفل",
+    "التغذية الصحية للأم المرضعة", "كيفية التعرف على علامات الخطورة", "النمو والتطور الحركي",
+    "التطور الإدراكي والمعرفي", "التطور اللغوي", "رسائل التربية الإيجابية", "الأنشطة التحفيزية",
+    "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة", "إعطاء الجرعة اليومية من الحديد",
+    "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة", "موقف إستخدام وسيلة تنظيم أسرة",
+    "الحمل الجديد", "الخدمات الغير ملباه", "تحويل الى عيادة تنظيم الاسره", "تخطيط الزيارة القادمة"
 ]
 
 YES_NO_CHECKBOX_FIELDS = [
-    "مكان المتابعة (وحدة)",
-    "مكان المتابعة (مستشفى)",
-    "مكان المتابعة (اخرى)",
-    "مصدر الاحالة(مستشفى الولادة)",
-    "مصدر الاحالة (عيادة خاصة)",
-    "مصدر الاحالة(عيادة التطعيمات)",
-    "مصدر الاحالة(نصيحة)",
+    "مكان المتابعة (وحدة)", "مكان المتابعة (مستشفى)", "مكان المتابعة (اخرى)",
+    "مصدر الاحالة(مستشفى الولادة)", "مصدر الاحالة (عيادة خاصة)",
+    "مصدر الاحالة(عيادة التطعيمات)", "مصدر الاحالة(نصيحة)"
 ]
 
+# ==================== دوال الحسابات والنمو والزيارات ====================
+def calculate_birth_head_circumference(weight_kg, length_cm):
+    try:
+        w = float(weight_kg)
+        l = float(length_cm)
+        if w > 0 and l > 0:
+            head_circ = (l / 2.0) + 9.5 + ((w - 3.3) * 0.8)
+            return str(round(head_circ, 1))
+    except (ValueError, TypeError):
+        pass
+    return ""
 
+def calculate_current_head_circumference(age_months_val, birth_w, birth_l, current_w, current_l):
+    try:
+        age_m = 0.0
+        if isinstance(age_months_val, str):
+            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
+            if clean_str:
+                age_m = float(clean_str)
+                if "أسبوع" in age_months_val:
+                    age_m = age_m / 4.33
+                elif "يوم" in age_months_val:
+                    age_m = age_m / 30.44
+        else:
+            age_m = float(age_months_val)
+
+        base_hc = float(calculate_birth_head_circumference(birth_w, birth_l)) if birth_w and birth_l else 34.5
+
+        if age_m <= 3:
+            growth = age_m * 2.0
+        elif age_m <= 6:
+            growth = (3 * 2.0) + ((age_m - 3) * 1.0)
+        elif age_m <= 12:
+            growth = (3 * 2.0) + (3 * 1.0) + ((age_m - 6) * 0.5)
+        else:
+            growth = (3 * 2.0) + (3 * 1.0) + (6 * 0.5) + ((age_m - 12) * 0.15)
+
+        cw = float(current_w) if current_w else 0.0
+        bw = float(birth_w) if birth_w else 0.0
+        weight_factor = ((cw - bw) * 0.1) if (cw > 0 and bw > 0) else 0.0
+
+        current_hc = base_hc + growth + weight_factor
+        return str(round(current_hc, 1))
+    except (ValueError, TypeError):
+        pass
+    return ""
+
+def get_best_visit_schedule(age_months_val):
+    try:
+        if isinstance(age_months_val, str):
+            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
+            if not clean_str:
+                return VISIT_SCHEDULE_OPTIONS[0]
+            age_m = float(clean_str)
+            if "أسبوع" in age_months_val:
+                age_m = age_m / 4.33
+            elif "يوم" in age_months_val:
+                age_m = age_m / 30.44
+        else:
+            age_m = float(age_months_val)
+
+        closest_option = VISIT_SCHEDULE_OPTIONS[0]
+        min_diff = float('inf')
+
+        for option in VISIT_SCHEDULE_OPTIONS:
+            target_m = VISIT_MONTHS_MAP[option]
+            diff = abs(target_m - age_m)
+            if diff < min_diff:
+                min_diff = diff
+                closest_option = option
+        return closest_option
+    except (ValueError, TypeError):
+        return VISIT_SCHEDULE_OPTIONS[0]
+
+def calculate_next_visit_date(current_visit_date_str, current_schedule_option):
+    try:
+        if not current_visit_date_str or current_schedule_option not in VISIT_SCHEDULE_OPTIONS:
+            return ""
+
+        current_idx = VISIT_SCHEDULE_OPTIONS.index(current_schedule_option)
+        if current_idx >= len(VISIT_SCHEDULE_OPTIONS) - 1:
+            return "مكتمل جميع الزيارات"
+
+        next_schedule_option = VISIT_SCHEDULE_OPTIONS[current_idx + 1]
+        
+        curr_m = VISIT_MONTHS_MAP[current_schedule_option]
+        next_m = VISIT_MONTHS_MAP[next_schedule_option]
+        diff_months = next_m - curr_m
+
+        base_date = datetime.datetime.strptime(current_visit_date_str, "%Y-%m-%d").date()
+        days_to_add = int(round(diff_months * 30.44))
+        next_date = base_date + datetime.timedelta(days=days_to_add)
+
+        return f"{next_date.strftime('%Y-%m-%d')} ({next_schedule_option})"
+    except Exception:
+        return ""
+
+# ==================== دوال المساعدة وتنسيق النصوص ====================
 def clean_digits(val, max_len=None):
     if not val:
         return ""
     digits = "".join(filter(str.isdigit, str(val)))
     if max_len:
-        return digits[:max_len]
+        digits = digits[:max_len]
     return digits
 
+def format_text_for_excel(val):
+    if not val:
+        return ""
+    clean_val = str(val).strip()
+    return f"'{clean_val}"
 
 def parse_national_id(nat_id):
     clean_id = clean_digits(nat_id, 14)
@@ -472,687 +355,441 @@ def parse_national_id(nat_id):
         try:
             birth_date = datetime.date(birth_year, month, day)
             today = datetime.date.today()
-            age = (
-                today.year
-                - birth_date.year
-                - ((today.month, today.day) < (birth_date.month, birth_date.day))
-            )
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
             return str(birth_date), str(age)
         except ValueError:
             return "", ""
     return "", ""
 
-
-def calculate_motor_development(
-    age_str, weight_birth, length_birth, weight_current, length_current
-):
-    try:
-        w_b = float(weight_birth) if weight_birth else 3.2
-        l_b = float(length_birth) if length_birth else 50.0
-        w_c = float(weight_current) if weight_current else w_b
-        l_c = float(length_current) if length_current else l_b
-
-        if not age_str:
-            age_months = 0.5
-        elif "يوم" in age_str:
-            age_months = 0.2
-        elif "أسبوع" in age_str:
-            weeks = float(
-                "".join(filter(lambda x: x.isdigit() or x == ".", age_str)) or 1
-            )
-            age_months = weeks / 4.0
-        else:
-            age_months = float(
-                "".join(filter(lambda x: x.isdigit() or x == ".", age_str)) or 1
-            )
-
-        if age_months <= 3:
-            expected_w_gain = age_months * 0.8
-            expected_l_gain = age_months * 3.5
-        elif age_months <= 6:
-            expected_w_gain = (3 * 0.8) + ((age_months - 3) * 0.6)
-            expected_l_gain = (3 * 3.5) + ((age_months - 3) * 2.0)
-        elif age_months <= 12:
-            expected_w_gain = (3 * 0.8) + (3 * 0.6) + ((age_months - 6) * 0.4)
-            expected_l_gain = (3 * 3.5) + (3 * 2.0) + ((age_months - 6) * 1.5)
-        else:
-            expected_w_gain = 4.2 + ((age_months - 12) * 0.2)
-            expected_l_gain = 20.0 + ((age_months - 12) * 1.0)
-
-        exp_weight = w_b + expected_w_gain
-        exp_length = l_b + expected_l_gain
-
-        weight_ratio = w_c / exp_weight
-        length_ratio = l_c / exp_length
-        combined_score = (weight_ratio * 0.6) + (length_ratio * 0.4)
-
-        if combined_score < 0.83:
-            return "متاخر"
-        elif combined_score > 1.22:
-            return "متقدم"
-        else:
-            return "طبيعى"
-    except Exception:
-        return "طبيعى"
-
-
-def get_existing_data(nat_id, sheet_name, id_column):
-    clean_id = clean_digits(nat_id, 14)
-    if os.path.exists(EXCEL_FILE) and len(clean_id) == 14:
+def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
+    clean_id = clean_digits(nat_id_val, 14)
+    if len(clean_id) == 14 and st.session_state.get(f"{prefix}_last_fetched_id") != clean_id:
         try:
-            excel = pd.ExcelFile(EXCEL_FILE)
-            for s in excel.sheet_names:
-                df = pd.read_excel(excel, sheet_name=s, dtype=str)
-                if id_column in df.columns:
-                    match = df[df[id_column].astype(str).str.strip() == clean_id]
-                    if not match.empty:
-                        return match.iloc[-1].to_dict()
-        except Exception:
-            pass
-    return {}
+            response = supabase.table(table_name).select("*").eq(id_col_name, clean_id).execute()
+            if response.data:
+                latest_data = response.data[-1]
+                cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
+                for col in cols:
+                    if col in latest_data and latest_data[col]:
+                        st.session_state[f"{prefix}_{col}"] = str(latest_data[col]).replace("'", "")
+                st.session_state[f"{prefix}_last_fetched_id"] = clean_id
+                st.toast("⚡ تم استدعاء بيانات الحساب المسجل تلقائياً من Supabase!", icon="✨")
+        except Exception as e:
+            print(f"Fetch Error: {e}")
 
+def voice_input_field(label, key_name):
+    col_input, col_voice = st.columns([4, 1])
+    with col_voice:
+        st.write("") 
+        st.write("") 
+        html_code = f"""
+        <script>
+        function startDictation_{key_name}() {{
+            if (window.hasOwnProperty('webkitSpeechRecognition')) {{
+                var recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = "ar-EG";
+                recognition.start();
+                recognition.onresult = function(e) {{
+                    var text = e.results[0][0].transcript;
+                    var targetInput = window.parent.document.querySelector('input[data-testid="stTextInput"][aria-label="{label}"]');
+                    if(targetInput) {{
+                        targetInput.value = text;
+                        targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    }}
+                    recognition.stop();
+                }};
+                recognition.onerror = function(e) {{ recognition.stop(); }}
+            }} else {{
+                alert("خاصية التعرف على الصوت غير مدعومة في جهازك/متصفحك الحالي.");
+            }}
+        }}
+        </script>
+        <button type="button" onclick="startDictation_{key_name}()" style="background:#4C1D95; color:white; border:none; padding:8px 10px; border-radius:6px; cursor:pointer; width:100%;">🎤 صوتي</button>
+        """
+        st.components.v1.html(html_code, height=45)
 
-if not os.path.exists(EXCEL_FILE):
-    try:
-        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-            pd.DataFrame(columns=PREGNANT_COLUMNS).to_excel(
-                writer, sheet_name="المشورة الاسرية للحامل", index=False
-            )
-            pd.DataFrame(columns=CHILD_COLUMNS).to_excel(
-                writer, sheet_name="سجل المشورة للاطفال", index=False
-            )
-    except ModuleNotFoundError:
-        st.error(
-            "تنبيه: مكتبة openpyxl غير مضافة في requirements.txt الخاص بالمشروع!"
-        )
+    with col_input:
+        val = st.text_input(label, key=key_name)
+    return val
+
+def clear_form_state(prefix):
+    cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
+    for col in cols:
+        st.session_state[f"{prefix}_{col}"] = ""
+    st.session_state[f"{prefix}_last_fetched_id"] = ""
 
 # ==================== تسجيل الدخول ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.user = None
-    st.session_state.name = None
-    st.session_state.role = None
 
 if not st.session_state.logged_in:
-    st.markdown(
-        "<h2 style='text-align: center; color: #BE185D;'>🌸 برنامج بودى للمشورة"
-        " الأسرية 🌸</h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<h4 style='text-align: center; color: #701A75;'>تسجيل الدخول للنظام</h4>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h1 style='text-align: center;'>🌸 برنامج بودى للمشورة الأسرية 🌸</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #555;'>تسجيل الدخول للنظام</h3>", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        user_options = {
-            f"{v['name']} ({k})": k for k, v in DEFAULT_USERS.items()
-        }
-        selected_display = st.selectbox(
-            "اختر الحساب والطبيبة 🩺", list(user_options.keys())
-        )
-        username = user_options[selected_display]
-        password = st.text_input("كلمة المرور", type="password")
+        user_list = list(DEFAULT_USERS.keys())
+        selected_username = st.selectbox("اختر اسم المستخدم (Username)", user_list, format_func=lambda x: f"{x} ({DEFAULT_USERS[x]['name']})")
+        password_input = st.text_input("كلمة المرور (Password)", type="password")
 
-        if st.button("تسجيل الدخول ✨", use_container_width=True):
-            if DEFAULT_USERS[username]["pass"] == password:
+        if st.button("تسجيل الدخول", use_container_width=True):
+            if DEFAULT_USERS[selected_username]["pass"] == password_input:
                 st.session_state.logged_in = True
-                st.session_state.user = username
-                st.session_state.name = DEFAULT_USERS[username]["name"]
-                st.session_state.role = DEFAULT_USERS[username]["role"]
+                st.session_state.username = selected_username
+                st.session_state.name = DEFAULT_USERS[selected_username]["name"]
+                st.session_state.role = DEFAULT_USERS[selected_username]["role"]
+                st.success(f"مرحباً بكِ {st.session_state.name} ✨")
                 st.rerun()
             else:
                 st.error("كلمة المرور غير صحيحة!")
     st.stop()
 
-# ==================== القائمة والخيارات ====================
-menu_options = [
-    "الصفحة الرئيسية",
-    "سجل الحوامل",
-    "سجل الأطفال",
-    "استعراض البيانات والداشبورد",
-]
+# ==================== القائمة الجانبية ====================
+st.sidebar.markdown(f"### 👩‍⚕️ أهلاً بكِ، {st.session_state.name}")
+st.sidebar.markdown("---")
+
+menu_options = ["سجل الحوامل", "سجل الأطفال", "استعراض البيانات والداشبورد", "استيراد البيانات (Excel/CSV)"]
 if st.session_state.role == "admin":
     menu_options.append("إدارة المستخدمين")
 
-st.sidebar.markdown(f"### أهلاً بكِ د. {st.session_state.name} 🌸")
-sidebar_menu = st.sidebar.radio(
-    "القائمة الرئيسية (جانبية)", menu_options, key="sidebar_radio"
-)
+menu = st.sidebar.selectbox("📋 اختر القسم المطلوب:", menu_options)
 
 if st.sidebar.button("🚪 تسجيل الخروج"):
     st.session_state.logged_in = False
     st.rerun()
 
-st.markdown("---")
-col_mobile_nav, col_mobile_logout = st.columns([3, 1])
-with col_mobile_nav:
-    main_screen_menu = st.selectbox(
-        "📱 انتقل مباشرة إلى القسم المطلوب:", menu_options, key="mobile_selectbox"
-    )
-with col_mobile_logout:
-    if st.button("خروج 🚪"):
-        st.session_state.logged_in = False
-        st.rerun()
+today_str = datetime.date.today().strftime("%Y-%m-%d")
 
-menu = main_screen_menu
-st.markdown("---")
-
-# ==================== 1. الصفحة الرئيسية ====================
-if menu == "الصفحة الرئيسية":
-    st.markdown(
-        "<h1>✨ مرحباً بكِ في نظام المشورة الأسرية الشامل ✨</h1>",
-        unsafe_allow_html=True,
-    )
-
-# ==================== 2. سجل الحوامل ====================
-elif menu == "سجل الحوامل":
-    st.markdown("<h2>🤰 سجل المشورة الأسرية للحوامل</h2>", unsafe_allow_html=True)
-    today_str = datetime.date.today().strftime("%Y-%m-%d")
-
+# ==================== 1. سجل الحوامل ====================
+if menu == "سجل الحوامل":
+    st.markdown("<h2>🤰 سجل المشورة الأسرية للسيدات الحوامل</h2>", unsafe_allow_html=True)
+    
     for col in PREGNANT_COLUMNS:
         if f"p_{col}" not in st.session_state:
-            if col == "التاريخ الزيارة":
-                st.session_state[f"p_{col}"] = today_str
-            else:
-                st.session_state[f"p_{col}"] = ""
+            st.session_state[f"p_{col}"] = today_str if col == "تاريخ الزيارة" else ""
 
-    form_data = {}
+    raw_id = voice_input_field("الرقم القومى للزوجة", "p_الرقم القومى للزوجة_input")
+    clean_p_id = clean_digits(raw_id, 14)
+    if clean_p_id:
+        st.session_state["p_الرقم القومى للزوجة"] = clean_p_id
+        if len(clean_p_id) == 14:
+            b_date, age = parse_national_id(clean_p_id)
+            if b_date: st.session_state["p_تاريخ الميلاد"] = b_date
+            if age: st.session_state["p_السن"] = age
+            fetch_auto_data_from_supabase("pregnant_records", "الرقم القومى للزوجة", clean_p_id, "p")
+
     for col_name in PREGNANT_COLUMNS:
-        if col_name in ["تاريخ التسجيل", "اسم المستخدم"]:
+        if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للزوجة"]:
             continue
 
-        if col_name == "نوع الولادة":
+        if col_name in DROPDOWN_OPTIONS:
+            opts = DROPDOWN_OPTIONS[col_name]
             st.markdown(f"**{col_name}**")
-            current_val = st.session_state.get(f"p_{col_name}", "")
-            c_opt1, c_opt2, c_opt3 = st.columns(3)
-            with c_opt1:
-                chk_nat = st.checkbox(
-                    "طبيعى",
-                    value=(current_val == "طبيعى"),
-                    key="p_birth_nat",
-                )
-            with c_opt2:
-                chk_ces = st.checkbox(
-                    "قيصرى",
-                    value=(current_val == "قيصرى"),
-                    key="p_birth_ces",
-                )
-            with c_opt3:
-                chk_none = st.checkbox(
-                    "لا يوجد",
-                    value=(current_val == "لا يوجد" or current_val == ""),
-                    key="p_birth_none",
-                )
-            selected_birth = (
-                "طبيعى" if chk_nat else ("قيصرى" if chk_ces else "لا يوجد")
+            curr = st.session_state.get(f"p_{col_name}", opts[0])
+            st.session_state[f"p_{col_name}"] = st.radio(
+                f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
+                key=f"p_radio_{col_name}", horizontal=True
             )
-            form_data[col_name] = selected_birth
-            st.session_state[f"p_{col_name}"] = selected_birth
-
-        elif col_name in DROPDOWN_OPTIONS:
-            st.markdown(f"**{col_name}**")
-            options = DROPDOWN_OPTIONS[col_name]
-            current_val = st.session_state.get(f"p_{col_name}", options[0])
-            chosen_choice = st.radio(
-                f"اختر {col_name}",
-                options,
-                index=(options.index(current_val) if current_val in options else 0),
-                key=f"p_radio_{col_name}",
-                horizontal=True,
-            )
-            form_data[col_name] = chosen_choice
-            st.session_state[f"p_{col_name}"] = chosen_choice
         else:
-            if col_name == "الرقم القومى":
-                val = voice_text_field(col_name, f"p_{col_name}")
-                cleaned_val = clean_digits(val, 14)
-                form_data[col_name] = cleaned_val
-                if len(cleaned_val) == 14:
-                    _, calc_age = parse_national_id(cleaned_val)
-                    if calc_age:
-                        st.session_state["p_العمر الحالى"] = calc_age
+            if col_name == "الرقم القومى للزوج":
+                raw_husband_id = voice_input_field(col_name, f"p_{col_name}_raw")
+                clean_h_id = clean_digits(raw_husband_id, 14)
+                st.session_state[f"p_{col_name}"] = clean_h_id
+                if len(clean_h_id) == 14:
+                    hb_date, _ = parse_national_id(clean_h_id)
+                    if hb_date: st.session_state["p_تاريخ ميلاد الزوج"] = hb_date
             elif col_name == "رقم الموبايل":
-                val = voice_text_field(col_name, f"p_{col_name}")
-                form_data[col_name] = clean_digits(val, 11)
-            elif col_name == "العمر الحالى":
-                form_data[col_name] = voice_text_field(
-                    f"{col_name} [محسوب تلقائياً]", f"p_{col_name}"
-                )
-            elif col_name == "التاريخ الزيارة":
-                form_data[col_name] = voice_text_field(
-                    f"{col_name} [تلقائي]", f"p_{col_name}"
-                )
+                raw_mob = voice_input_field(col_name, f"p_{col_name}_raw")
+                st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
+            elif col_name in ["تاريخ الميلاد", "السن", "تاريخ ميلاد الزوج"]:
+                st.text_input(f"{col_name} [تلقائي]", key=f"p_{col_name}")
             else:
-                form_data[col_name] = voice_text_field(col_name, f"p_{col_name}")
+                val_voice = voice_input_field(col_name, f"p_voice_{col_name}")
+                st.session_state[f"p_{col_name}"] = val_voice
 
-    if st.button("💾 حفظ بيانات الحامل", use_container_width=True):
-        final_form_data = {}
+    if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
+        final_p_data = {}
         for col in PREGNANT_COLUMNS:
             if col == "تاريخ التسجيل":
-                final_form_data[col] = datetime.datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                final_p_data[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             elif col == "اسم المستخدم":
-                final_form_data[col] = st.session_state.name
+                final_p_data[col] = st.session_state.name
             else:
-                final_form_data[col] = st.session_state.get(
-                    f"p_{col}", form_data.get(col, "")
-                )
+                val = st.session_state.get(f"p_{col}", "")
+                if "الرقم القومى" in col or "رقم الموبايل" in col:
+                    val = format_text_for_excel(val)
+                final_p_data[col] = val
 
-        new_df = pd.DataFrame([final_form_data], dtype=str)
-        excel = pd.ExcelFile(EXCEL_FILE)
-        all_dfs = {
-            s: pd.read_excel(excel, sheet_name=s, dtype=str)
-            for s in excel.sheet_names
-        }
+        try:
+            supabase.table("pregnant_records").insert(final_p_data).execute()
+            st.success("تم حفظ بيانات الحامل في Supabase بنجاح! ✨")
+            clear_form_state("p")
+            st.rerun()
+        except Exception as e:
+            st.error(f"خطأ أثناء الحفظ: {e}")
 
-        for col in PREGNANT_COLUMNS:
-            if col not in new_df.columns:
-                new_df[col] = ""
-        new_df = new_df[PREGNANT_COLUMNS]
-
-        if "المشورة الاسرية للحامل" in all_dfs:
-            all_dfs["المشورة الاسرية للحامل"] = pd.concat(
-                [all_dfs["المشورة الاسرية للحامل"], new_df], ignore_index=True
-            )
-        else:
-            all_dfs["المشورة الاسرية للحامل"] = new_df
-
-        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-            for s, df in all_dfs.items():
-                df.to_excel(writer, sheet_name=s, index=False)
-        st.success("تم حفظ بيانات الحامل بنجاح! ✨")
-
-# ==================== 3. سجل الأطفال ====================
+# ==================== 2. سجل الأطفال ====================
 elif menu == "سجل الأطفال":
     st.markdown("<h2>👶 سجل المشورة الأسرية للأطفال</h2>", unsafe_allow_html=True)
-
-    today_str = datetime.date.today().strftime("%Y-%m-%d")
+    
     for col in CHILD_COLUMNS:
         if f"c_{col}" not in st.session_state:
-            if col in ["تاريخ الزيارة", "تاريخ اول زيارة"]:
-                st.session_state[f"c_{col}"] = today_str
-            else:
-                st.session_state[f"c_{col}"] = ""
+            st.session_state[f"c_{col}"] = today_str if col in ["تاريخ الزيارة", "تاريخ اول زيارة"] else ""
 
-    nat_id_mom_input = voice_text_field(
-        "الرقم القومى للام (اختياري)", "c_الرقم القومى للام"
+    raw_nat_id_mom = voice_input_field("الرقم القومى للام (اختياري)", "c_الرقم القومى للام_input")
+    clean_c_id = clean_digits(raw_nat_id_mom, 14)
+    if clean_c_id:
+        st.session_state["c_الرقم القومى للام"] = clean_c_id
+        if len(clean_c_id) == 14:
+            b_mom, _ = parse_national_id(clean_c_id)
+            if b_mom: st.session_state["c_تاريخ ميلاد الام"] = b_mom
+            fetch_auto_data_from_supabase("children_records", "الرقم القومى للام", clean_c_id, "c")
+
+    # تصحيح الخطأ الإملائي بحساب المقاس (تعديل ة بدل ه)
+    auto_birth_hc = calculate_birth_head_circumference(
+        st.session_state.get("c_وزن الطفل عند الولادة"),
+        st.session_state.get("c_طول الطفل عند الولادة")
     )
-    nat_id_mom_input = clean_digits(nat_id_mom_input, 14)
+    if auto_birth_hc:
+        st.session_state["c_مقاس راس الطفل عند الولادة"] = auto_birth_hc
 
-    if len(nat_id_mom_input) == 14:
-        b_date_mom, _ = parse_national_id(nat_id_mom_input)
-        if b_date_mom and not st.session_state.get("c_تاريخ ميلاد الام"):
-            st.session_state["c_تاريخ ميلاد الام"] = b_date_mom
-
-        if st.button("🔍 استرجاع بيانات الأسرة المسجلة مسبقاً"):
-            found_data = get_existing_data(
-                nat_id_mom_input, "سجل المشورة للاطفال", "الرقم القومى للام"
-            ) or get_existing_data(
-                nat_id_mom_input, "المشورة الاسرية للحامل", "الرقم القومى"
-            )
-            for c_name in CHILD_COLUMNS:
-                if c_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
-                    continue
-                val = found_data.get(c_name, "")
-                if val:
-                    st.session_state[f"c_{c_name}"] = str(val)
-            st.rerun()
-
-    calculated_motor = calculate_motor_development(
-        st.session_state.get("c_العمر الحالى للطفل (شهور)", ""),
-        st.session_state.get("c_وزن الطفل عند الولادة", ""),
-        st.session_state.get("c_طول الطفل عند الولادة", ""),
-        st.session_state.get("c_الوزن (كجم)", ""),
-        st.session_state.get("c_الطول (سم)", ""),
+    auto_curr_hc = calculate_current_head_circumference(
+        st.session_state.get("c_العمر الحالى للطفل (شهور)"),
+        st.session_state.get("c_وزن الطفل عند الولادة"),
+        st.session_state.get("c_طول الطفل عند الولادة"),
+        st.session_state.get("c_الوزن (كجم)"),
+        st.session_state.get("c_الطول (سم)")
     )
-    st.session_state["c_النمو والتطور الحركي"] = calculated_motor
+    if auto_curr_hc:
+        st.session_state["c_محيط الرأس (سم)"] = auto_curr_hc
+
+    auto_visit_schedule = get_best_visit_schedule(st.session_state.get("c_العمر الحالى للطفل (شهور)", 0))
+    if not st.session_state.get("c_موعد الزيارة") or st.session_state.get("c_auto_visit_set") != auto_visit_schedule:
+        st.session_state["c_موعد الزيارة"] = auto_visit_schedule
+        st.session_state["c_auto_visit_set"] = auto_visit_schedule
+
+    auto_next_visit = calculate_next_visit_date(
+        st.session_state.get("c_تاريخ الزيارة", today_str),
+        st.session_state.get("c_موعد الزيارة")
+    )
+    st.session_state["c_تخطيط الزيارة القادمة"] = auto_next_visit
 
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ التسجيل", "اسم المستخدم", "الرقم القومى للام"]:
             continue
 
-        if col_name == "نوع الولادة":
+        elif col_name == "نوع الولادة":
             st.markdown(f"**{col_name}**")
-            current_val = st.session_state.get(f"c_{col_name}", "")
-            c_opt1, c_opt2, c_opt3 = st.columns(3)
-            with c_opt1:
-                chk_nat = st.checkbox(
-                    "طبيعى",
-                    value=(current_val == "طبيعى"),
-                    key="c_birth_nat",
-                )
-            with c_opt2:
-                chk_ces = st.checkbox(
-                    "قيصرى",
-                    value=(current_val == "قيصرى"),
-                    key="c_birth_ces",
-                )
-            with c_opt3:
-                chk_none = st.checkbox(
-                    "لا يوجد",
-                    value=(current_val == "لا يوجد" or current_val == ""),
-                    key="c_birth_none",
-                )
-            selected_birth = (
-                "طبيعى" if chk_nat else ("قيصرى" if chk_ces else "لا يوجد")
-            )
-            st.session_state[f"c_{col_name}"] = selected_birth
+            curr = st.session_state.get(f"c_{col_name}", "")
+            c1, c2, c3 = st.columns(3)
+            with c1: chk_nat = st.checkbox("طبيعى", value=(curr == "طبيعى"), key="c_birth_nat")
+            with c2: chk_ces = st.checkbox("قيصرى", value=(curr == "قيصرى"), key="c_birth_ces")
+            with c3: chk_none = st.checkbox("لا يوجد", value=(curr in ["لا يوجد", ""]), key="c_birth_none")
+            st.session_state[f"c_{col_name}"] = "طبيعى" if chk_nat else ("قيصرى" if chk_ces else "لا يوجد")
 
         elif col_name == "رضاعة طبيعية مطلقة":
             st.markdown(f"**{col_name}**")
+            curr = st.session_state.get(f"c_{col_name}", "")
             c1, c2, c3 = st.columns(3)
-            current_val = st.session_state.get(f"c_{col_name}", "")
-            with c1:
-                chk_3 = st.checkbox(
-                    "3 شهور", value=(current_val == "3 شهور"), key="c_bf_ex_3"
-                )
-            with c2:
-                chk_4 = st.checkbox(
-                    "4 شهور", value=(current_val == "4 شهور"), key="c_bf_ex_4"
-                )
-            with c3:
-                chk_6 = st.checkbox(
-                    "6 شهور", value=(current_val == "6 شهور"), key="c_bf_ex_6"
-                )
-            selected_bf_ex = (
-                "3 شهور" if chk_3 else ("4 شهور" if chk_4 else ("6 شهور" if chk_6 else ""))
-            )
-            st.session_state[f"c_{col_name}"] = selected_bf_ex
+            with c1: chk3 = st.checkbox("3 شهور", value=(curr == "3 شهور"), key="c_bf_3")
+            with c2: chk4 = st.checkbox("4 شهور", value=(curr == "4 شهور"), key="c_bf_4")
+            with c3: chk6 = st.checkbox("6 شهور", value=(curr == "6 شهور"), key="c_bf_6")
+            st.session_state[f"c_{col_name}"] = "3 شهور" if chk3 else ("4 شهور" if chk4 else ("6 شهور" if chk6 else ""))
 
         elif col_name in YES_NO_CHECKBOX_FIELDS:
-            checked = st.checkbox(col_name, value=False, key=f"c_chk_{col_name}")
-            st.session_state[f"c_{col_name}"] = "نعم" if checked else ""
+            chk = st.checkbox(col_name, value=False, key=f"c_chk_{col_name}")
+            st.session_state[f"c_{col_name}"] = "نعم" if chk else ""
+
+        elif col_name == "موعد الزيارة":
+            st.markdown(f"**{col_name} [مُقترح آلياً 🎯]**")
+            curr_val = st.session_state.get(f"c_{col_name}", VISIT_SCHEDULE_OPTIONS[0])
+            st.session_state[f"c_{col_name}"] = st.selectbox(
+                "اختر موعد الزيارة", VISIT_SCHEDULE_OPTIONS,
+                index=VISIT_SCHEDULE_OPTIONS.index(curr_val) if curr_val in VISIT_SCHEDULE_OPTIONS else 0,
+                key="c_select_موعد الزيارة"
+            )
+
+        elif col_name in ["مقاس راس الطفل عند الولادة", "محيط الرأس (سم)", "تخطيط الزيارة القادمة"]:
+            st.text_input(
+                f"{col_name} [حساب تلقائي ⚙️]",
+                value=st.session_state.get(f"c_{col_name}", ""),
+                key=f"c_auto_{col_name}",
+                disabled=True
+            )
 
         elif col_name in DROPDOWN_OPTIONS:
-            options = DROPDOWN_OPTIONS[col_name]
-            if col_name == "موعد الزيارة":
-                auto_visit_choice = VISIT_SCHEDULE_OPTIONS[0]
-                try:
-                    age_str = st.session_state.get("c_العمر الحالى للطفل (شهور)", "")
-                    if age_str:
-                        if "يوم" in age_str or "أسبوع" in age_str:
-                            auto_visit_choice = "الاسبوع الاول"
-                        else:
-                            age_num = float(
-                                "".join(
-                                    filter(lambda x: x.isdigit() or x == ".", age_str)
-                                )
-                                or 0
-                            )
-                            if age_num <= 2:
-                                auto_visit_choice = "عمر شهرين"
-                            elif age_num <= 4:
-                                auto_visit_choice = "عمر 4 شهور"
-                            elif age_num <= 6:
-                                auto_visit_choice = "عمر 6 شهور"
-                            elif age_num <= 9:
-                                auto_visit_choice = "عمر 9 شهور"
-                            elif age_num <= 12:
-                                auto_visit_choice = "عمر 12 شهر"
-                            elif age_num <= 18:
-                                auto_visit_choice = "عمر 18 شهر"
-                            elif age_num <= 24:
-                                auto_visit_choice = "عمر سنتين"
-                            elif age_num <= 30:
-                                auto_visit_choice = "عمر سنتين ونصف"
-                            elif age_num <= 36:
-                                auto_visit_choice = "عمر 3 سنين"
-                            elif age_num <= 42:
-                                auto_visit_choice = "عمر 3 سنين ونصف"
-                            elif age_num <= 48:
-                                auto_visit_choice = "عمر 4 سنين"
-                            elif age_num <= 54:
-                                auto_visit_choice = "عمر 4 سنين ونصف"
-                            elif age_num <= 60:
-                                auto_visit_choice = "عمر 5 سنين"
-                            elif age_num <= 66:
-                                auto_visit_choice = "عمر 5 سنين ونصف"
-                            else:
-                                auto_visit_choice = "عمر 6 سنين"
-                except Exception:
-                    pass
-                st.session_state[f"c_{col_name}"] = auto_visit_choice
-
+            opts = DROPDOWN_OPTIONS[col_name]
             st.markdown(f"**{col_name}**")
-            current_val = st.session_state.get(f"c_{col_name}", options[0])
-            chosen_choice = st.radio(
-                f"اختر {col_name}",
-                options,
-                index=(options.index(current_val) if current_val in options else 0),
-                key=f"c_radio_{col_name}",
-                horizontal=True,
+            curr = st.session_state.get(f"c_{col_name}", opts[0])
+            st.session_state[f"c_{col_name}"] = st.radio(
+                f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
+                key=f"c_radio_{col_name}", horizontal=True
             )
-            st.session_state[f"c_{col_name}"] = chosen_choice
 
         else:
             if col_name in ["الرقم القومى للام", "الرقم القومى للاب"]:
-                val = voice_text_field(col_name, f"c_{col_name}")
-                st.session_state[f"c_{col_name}"] = clean_digits(val, 14)
+                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
+                st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم الموبايل للام", "رقم الموبايل للاب"]:
-                val = voice_text_field(col_name, f"c_{col_name}")
-                st.session_state[f"c_{col_name}"] = clean_digits(val, 11)
-            elif col_name == "تاريخ ميلاد الام":
-                voice_text_field(
-                    f"{col_name} [تلقائي عند إضافة الرقم القومي]",
-                    f"c_{col_name}",
-                )
-
+                raw_val = voice_input_field(col_name, f"c_{col_name}_raw")
+                st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name == "تاريخ الميلاد للطفل":
-                default_date_val = datetime.date.today()
-                existing_b_date = st.session_state.get(f"c_{col_name}", "")
-                if existing_b_date:
-                    try:
-                        default_date_val = datetime.datetime.strptime(
-                            existing_b_date.strip(), "%Y-%m-%d"
-                        ).date()
-                    except Exception:
-                        pass
-
-                chosen_date = st.date_input(
-                    col_name, value=default_date_val, key=f"c_date_input_{col_name}"
-                )
+                def_date = datetime.date.today()
+                if st.session_state.get(f"c_{col_name}"):
+                    try: def_date = datetime.datetime.strptime(st.session_state[f"c_{col_name}"], "%Y-%m-%d").date()
+                    except: pass
+                chosen_date = st.date_input(col_name, value=def_date, key=f"c_date_{col_name}")
                 st.session_state[f"c_{col_name}"] = str(chosen_date)
-
-                try:
-                    if st.session_state[f"c_{col_name}"]:
-                        today_date = datetime.date.today()
-                        delta_days = (today_date - chosen_date).days
-
-                        if delta_days >= 0:
-                            if delta_days < 7:
-                                age_display = f"{delta_days} يوم"
-                            elif delta_days < 30:
-                                weeks_count = round(delta_days / 7)
-                                age_display = f"{weeks_count} أسبوع"
-                            else:
-                                months_count = round(delta_days / 30.44, 1)
-                                if months_count.is_integer():
-                                    months_count = int(months_count)
-                                age_display = f"{months_count} شهر"
-                            st.session_state["c_العمر الحالى للطفل (شهور)"] = age_display
-
-                            gestational_weeks_calc = max(
-                                24, min(42, 40 - max(0, round((280 - delta_days) / 7)))
-                            )
-                            st.session_state["c_العمر الرحمى للطفل (أسابيع)"] = (
-                                f"{gestational_weeks_calc} أسبوع"
-                            )
-                except Exception:
-                    pass
-
-            elif col_name == "العمر الحالى للطفل (شهور)":
-                voice_text_field(f"{col_name} [تلقائي]", f"c_{col_name}")
-
-            elif col_name == "العمر الرحمى للطفل (أسابيع)":
-                voice_text_field(
-                    f"{col_name} [محسوب تلقائياً]", f"c_{col_name}"
-                )
-
-            elif col_name == "وزن الطفل عند الولادة":
-                voice_text_field(col_name, f"c_{col_name}")
-
-            elif col_name == "طول الطفل عند الولادة":
-                voice_text_field(col_name, f"c_{col_name}")
-                try:
-                    w_val = st.session_state.get("c_وزن الطفل عند الولادة", "3.0")
-                    l_val = st.session_state.get("c_طول الطفل عند الولادة", "50.0")
-                    if w_val and l_val:
-                        st.session_state["c_مقاس راس الطفل عند الولادة"] = str(
-                            round((float(l_val) / 2) + (float(w_val) * 0.5) + 10, 1)
-                        )
-                except Exception:
-                    pass
-
-            elif col_name == "محيط الرأس (سم)":
-                try:
-                    w_birth = float(
-                        st.session_state.get("c_وزن الطفل عند الولادة", "3.0") or 3.0
-                    )
-                    l_birth = float(
-                        st.session_state.get("c_طول الطفل عند الولادة", "50.0") or 50.0
-                    )
-                    w_curr = float(st.session_state.get("c_الوزن (كجم)", "3.5") or 3.5)
-                    l_curr = float(st.session_state.get("c_الطول (سم)", "52.0") or 52.0)
-                    age_str = st.session_state.get("c_العمر الحالى للطفل (شهور)", "1")
-
-                    if "يوم" in age_str or "أسبوع" in age_str:
-                        age_m = 0.5
-                    else:
-                        age_m = float(
-                            "".join(filter(lambda x: x.isdigit() or x == ".", age_str))
-                            or 1.0
-                        )
-
-                    base_head = (l_birth * 0.35) + (w_birth * 0.8) + 15.0
-                    growth_factor = (l_curr * 0.1) + (w_curr * 0.4) + (age_m * 0.5)
-                    calc_head = round((base_head + growth_factor) / 2.0 + 10.0, 1)
-
-                    st.session_state[f"c_{col_name}"] = str(calc_head)
-                except Exception:
-                    pass
-
-                voice_text_field(
-                    f"{col_name} [محسوب تلقائياً]", f"c_{col_name}"
-                )
-
-            elif col_name == "تخطيط الزيارة القادمة":
-                try:
-                    current_visit = st.session_state.get("c_موعد الزيارة", "")
-                    reg_date_str = st.session_state.get("c_تاريخ الزيارة", today_str)
-                    base_date = datetime.datetime.strptime(
-                        reg_date_str.strip(), "%Y-%m-%d"
-                    ).date()
-
-                    days_to_add = 30
-                    if current_visit in VISIT_SCHEDULE_OPTIONS:
-                        idx = VISIT_SCHEDULE_OPTIONS.index(current_visit)
-                        if idx + 1 < len(VISIT_SCHEDULE_OPTIONS):
-                            next_visit_name = VISIT_SCHEDULE_OPTIONS[idx + 1]
-                            if "شهر" in next_visit_name:
-                                m_num = int(
-                                    "".join(
-                                        filter(lambda x: x.isdigit(), next_visit_name)
-                                    )
-                                    or 1
-                                )
-                                days_to_add = m_num * 30
-                            elif "سنين" in next_visit_name or "سنتين" in next_visit_name:
-                                days_to_add = 180 if "نصف" in next_visit_name else 365
-                            elif "الاسبوع" in next_visit_name:
-                                days_to_add = 7
-
-                    next_date = base_date + datetime.timedelta(days=days_to_add)
-                    st.session_state[f"c_{col_name}"] = str(next_date)
-                except Exception:
-                    pass
-
-                voice_text_field(f"{col_name} [تلقائي]", f"c_{col_name}")
-
+                delta_days = (datetime.date.today() - chosen_date).days
+                if delta_days >= 0:
+                    if delta_days < 7: age_str = f"{delta_days} يوم"
+                    elif delta_days < 30: age_str = f"{round(delta_days/7)} أسبوع"
+                    else: age_str = f"{round(delta_days/30.44, 1)} شهر"
+                    st.session_state["c_العمر الحالى للطفل (شهور)"] = age_str
+                    st.session_state["c_العمر الرحمى للطفل (أسابيع)"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                voice_text_field(col_name, f"c_{col_name}")
+                val_voice = voice_input_field(col_name, f"c_voice_{col_name}")
+                st.session_state[f"c_{col_name}"] = val_voice
 
-    if st.button("💾 حفظ بيانات الطفل", use_container_width=True):
-        final_child_data = {}
+    if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
+        final_c_data = {}
         for col in CHILD_COLUMNS:
             if col == "تاريخ التسجيل":
-                final_child_data[col] = datetime.datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                final_c_data[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             elif col == "اسم المستخدم":
-                final_child_data[col] = st.session_state.name
+                final_c_data[col] = st.session_state.name
             else:
-                final_child_data[col] = st.session_state.get(f"c_{col}", "")
+                val = st.session_state.get(f"c_{col}", "")
+                if "الرقم القومى" in col or "رقم الموبايل" in col:
+                    val = format_text_for_excel(val)
+                final_c_data[col] = val
 
-        new_df = pd.DataFrame([final_child_data], dtype=str)
-        excel = pd.ExcelFile(EXCEL_FILE)
-        all_dfs = {
-            s: pd.read_excel(excel, sheet_name=s, dtype=str)
-            for s in excel.sheet_names
-        }
+        try:
+            supabase.table("children_records").insert(final_c_data).execute()
+            st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
+            clear_form_state("c")
+            st.rerun()
+        except Exception as e:
+            st.error(f"خطأ أثناء الحفظ: {e}")
 
-        for col in CHILD_COLUMNS:
-            if col not in new_df.columns:
-                new_df[col] = ""
-        new_df = new_df[CHILD_COLUMNS]
-
-        if "سجل المشورة للاطفال" in all_dfs:
-            all_dfs["سجل المشورة للاطفال"] = pd.concat(
-                [all_dfs["سجل المشورة للاطفال"], new_df], ignore_index=True
-            )
-        else:
-            all_dfs["سجل المشورة للاطفال"] = new_df
-
-        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-            for s, df in all_dfs.items():
-                df.to_excel(writer, sheet_name=s, index=False)
-
-        motor_status = final_child_data.get("النمو والتطور الحركي", "")
-        if motor_status == "متاخر":
-            st.markdown(
-                """
-                <div class="danger-alert-box">
-                    <div class="danger-alert-title">🚨 تنبيه حرج: الطفل متأخر في النمو! 🚨</div>
-                    <div class="danger-alert-text">بناءً على قياسات الوزن والطول مقارنة بالعُمر والحالة عند الولادة، يبدو أن الطفل يعاني من تأخر في النمو والتطور الحركي. يرجى المتابعة والتحويل للتقييم الطبي الفوري.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        st.success("تم حفظ بيانات الطفل بنجاح! ✨")
-
-# ==================== 4. استعراض البيانات والداشبورد ====================
+# ==================== 3. استعراض البيانات والداشبورد ====================
 elif menu == "استعراض البيانات والداشبورد":
-    st.markdown("<h2>📊 لوحة البيانات والإحصائيات</h2>", unsafe_allow_html=True)
-    if os.path.exists(EXCEL_FILE):
-        excel = pd.ExcelFile(EXCEL_FILE)
-        df_preg = (
-            pd.read_excel(excel, sheet_name="المشورة الاسرية للحامل")
-            if "المشورة الاسرية للحامل" in excel.sheet_names
-            else pd.DataFrame()
+    st.markdown("<h2>📊 لوحة المؤشرات واستعراض البيانات</h2>", unsafe_allow_html=True)
+    
+    record_type = st.radio("اختر السجل للاستعراض:", ["سجل الحوامل", "سجل الأطفال"], horizontal=True)
+    db_table_name = "pregnant_records" if record_type == "سجل الحوامل" else "children_records"
+
+    try:
+        res = supabase.table(db_table_name).select("*").execute()
+        df_view = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+        target_cols = PREGNANT_COLUMNS if record_type == "سجل الحوامل" else CHILD_COLUMNS
+        
+        for c in target_cols:
+            if c not in df_view.columns:
+                df_view[c] = ""
+        df_view = df_view[target_cols]
+
+        if st.session_state.role != "admin":
+            df_view = df_view[df_view["اسم المستخدم"] == st.session_state.name]
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("إجمالي السجلات المسجلة", len(df_view))
+        if record_type == "سجل الحوامل":
+            col2.metric("الحوامل في الشهر الأخير", len(df_view[df_view["شهر الحمل"] == "الشهر التاسع"]))
+            col3.metric("متابعات هذا الشهر", len(df_view[df_view["تاريخ الزيارة"].astype(str).str.startswith(today_str[:7])]))
+        else:
+            col2.metric("أطفال الحضانة", len(df_view[df_view["دخول الحضانة"] == "تم"]))
+            col3.metric("زيارات هذا الشهر", len(df_view[df_view["تاريخ الزيارة"].astype(str).str.startswith(today_str[:7])]))
+
+        st.markdown("---")
+
+        search_query = st.text_input("🔍 بحث في البيانات (بالاسم أو الرقم القومي):")
+        if search_query:
+            filter_mask = df_view.astype(str).apply(lambda row: row.str.contains(search_query, case=False).any(), axis=1)
+            df_display = df_view[filter_mask]
+        else:
+            df_display = df_view
+
+        st.dataframe(df_display, use_container_width=True)
+
+        @st.cache_data
+        def convert_df_to_excel(df):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Data')
+            return output.getvalue()
+
+        excel_data = convert_df_to_excel(df_display)
+        st.download_button(
+            label="📥 تحميل البيانات بصيغة Excel",
+            data=excel_data,
+            file_name=f"{db_table_name}_{today_str}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
         )
-        df_child = (
-            pd.read_excel(excel, sheet_name="سجل المشورة للاطفال")
-            if "سجل المشورة للاطفال" in excel.sheet_names
-            else pd.DataFrame()
-        )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("عدد الحوامل المسجلات", len(df_preg))
-        with col2:
-            st.metric("عدد الأطفال المسجلين", len(df_child))
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء استعراض البيانات: {e}")
 
-        tab1, tab2 = st.tabs(["بيانات الحوامل", "بيانات الأطفال"])
-        with tab1:
-            st.dataframe(df_preg)
-        with tab2:
-            st.dataframe(df_child)
+# ==================== 4. استيراد البيانات (Excel/CSV) ====================
+elif menu == "استيراد البيانات (Excel/CSV)":
+    st.markdown("<h2>📤 استيراد بيانات جديدة إلى Supabase</h2>", unsafe_allow_html=True)
+    
+    target_table = st.radio("اختر السجل المراد رفع البيانات إليه:", ["سجل الحوامل", "سجل الأطفال"], horizontal=True)
+    db_name = "pregnant_records" if target_table == "سجل الحوامل" else "children_records"
+    cols_schema = PREGNANT_COLUMNS if target_table == "سجل الحوامل" else CHILD_COLUMNS
 
-# ==================== 5. إدارة المستخدمين ====================
-elif menu == "إدارة المستخدمين" and st.session_state.role == "admin":
+    uploaded_file = st.file_uploader("اختر ملف Excel أو CSV:", type=["xlsx", "xls", "csv"])
+
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df_upload = pd.read_csv(uploaded_file, dtype=str)
+            else:
+                df_upload = pd.read_excel(uploaded_file, dtype=str)
+
+            df_upload = df_upload.fillna("")
+            st.write("📋 معاينة البيانات المراد رفعها:")
+            st.dataframe(df_upload.head())
+
+            if st.button("🚀 بدء رفع البيانات إلى Supabase", use_container_width=True):
+                records_to_insert = []
+                for _, row in df_upload.iterrows():
+                    record = {}
+                    for col in cols_schema:
+                        val = row.get(col, "")
+                        if "الرقم القومى" in col or "رقم الموبايل" in col:
+                            val = format_text_for_excel(val)
+                        record[col] = str(val) if val is not None else ""
+                    
+                    if not record.get("تاريخ التسجيل"):
+                        record["تاريخ التسجيل"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    if not record.get("اسم المستخدم"):
+                        record["اسم المستخدم"] = st.session_state.name
+                        
+                    records_to_insert.append(record)
+
+                supabase.table(db_name).insert(records_to_insert).execute()
+                st.success(f"تم رفع {len(records_to_insert)} سجل بنجاح إلى Supabase! ✨")
+
+        except Exception as e:
+            st.error(f"خطأ أثناء قراءة أو رفع الملف: {e}")
+
+# ==================== 5. إدارة المستخدمين (Admin Only) ====================
+elif menu == "إدارة المستخدمين":
     st.markdown("<h2>⚙️ إدارة حسابات المستخدمين</h2>", unsafe_allow_html=True)
-    st.write("جدول المستخدمين المتاحين حالياً في النظام:")
-    st.json(DEFAULT_USERS)
+    
+    if st.session_state.role != "admin":
+        st.error("عذراً، هذه الصفحة متاحة فقط للمسؤولين (Admin).")
+    else:
+        st.subheader("👥 الحسابات المسجلة حالياً:")
+        user_df = pd.DataFrame([
+            {"اسم المستخدم": k, "الاسم الظاهر": v["name"], "الصلاحية": v["role"]}
+            for k, v in DEFAULT_USERS.items()
+        ])
+        st.table(user_df)
+
+        st.info("ملاحظة: تعديل وتحديد المستخدمين يتم إدارته من خلال قائمة الثوابت الرئيسية بالحسابات.")
