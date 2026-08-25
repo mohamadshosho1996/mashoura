@@ -5,7 +5,6 @@ import io
 import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
-from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase (آمنة عبر Secrets) ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
@@ -236,22 +235,6 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_مستشفى", "مصدر_الاحالة_عيادة",
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
-
-# ==================== دالة حقل النص مع الإدخال الصوتي ====================
-def text_input_with_voice(label, key_prefix, value=""):
-    col_f1, col_f2 = st.columns([5, 1])
-    with col_f1:
-        val = st.text_input(label, value=value, key=f"{key_prefix}_txt")
-    with col_f2:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        audio = mic_recorder(
-            start_prompt="🎤",
-            stop_prompt="⏹️",
-            key=f"{key_prefix}_mic"
-        )
-    if audio and "bytes" in audio:
-        st.toast(f"تم تسجيل الصوت بنجاح لـ: {label}", icon="🎙️")
-    return val
 
 # ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
@@ -523,8 +506,7 @@ if menu == "سجل الحوامل":
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
             else:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"p_text_{col_name}")
-                st.session_state[f"p_{col_name}"] = val_text
+                st.session_state[f"p_{col_name}"] = st.text_input(col_name.replace('_', ' '), key=f"p_text_{col_name}")
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
         final_p_data = {}
@@ -683,8 +665,7 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر_الحالى_للطفل"] = age_str
                     st.session_state["c_العمر_الرحمى_للطفل"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
-                st.session_state[f"c_{col_name}"] = val_text
+                st.session_state[f"c_{col_name}"] = st.text_input(col_name.replace('_', ' '), key=f"c_text_{col_name}")
 
     current_motor_status = st.session_state.get("c_النمو_الحركي", "")
     if current_motor_status == "متاخر":
