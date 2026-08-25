@@ -561,6 +561,12 @@ elif menu == "سجل الأطفال":
             if b_mom: 
                 st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
+            
+    # التحقق المباشر من الرقم القومي لتوليد تاريخ الميلاد فوراً
+    if len(st.session_state.get("c_الرقم_القومى_للام", "")) == 14:
+        b_mom_direct, _ = parse_national_id(st.session_state["c_الرقم_القومى_للام"])
+        if b_mom_direct and not st.session_state.get("c_تاريخ_ميلاد_للام"):
+            st.session_state["c_تاريخ_ميلاد_للام"] = b_mom_direct
 
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ_التسجيل", "اسم_المستخدم", "الرقم_القومى_للام"]:
@@ -598,7 +604,6 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة", "العمر_الحالى_للطفل", "العمر_الرحمى_للطفل", "تاريخ_ميلاد_للام"]:
-            # معالجة حسابية فورية للتأكد من تحديث الحقول التلقائية
             if col_name == "مقاس_راس_الطفل":
                 val = calculate_birth_head_circumference(st.session_state.get("c_وزن_الطفل"), st.session_state.get("c_طول_الطفل"))
                 st.session_state[f"c_{col_name}"] = val
@@ -608,6 +613,12 @@ elif menu == "سجل الأطفال":
             elif col_name == "تخطيط_الزيارة":
                 val = calculate_next_visit_date(st.session_state.get("c_تاريخ_الزيارة", today_str), st.session_state.get("c_موعد_الزيارة"))
                 st.session_state[f"c_{col_name}"] = val
+            elif col_name == "تاريخ_ميلاد_للام":
+                mom_id = st.session_state.get("c_الرقم_القومى_للام", "")
+                if len(mom_id) == 14:
+                    b_m, _ = parse_national_id(mom_id)
+                    if b_m:
+                        st.session_state[f"c_{col_name}"] = b_m
 
             st.text_input(
                 f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
