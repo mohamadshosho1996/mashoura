@@ -16,7 +16,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ==================== إعدادات الصفحة والتصميم (بدون جافاسكريبت ثقيل لتسريع الاستجابة) ====================
+# ==================== إعدادات الصفحة والتصميم ====================
 st.set_page_config(
     page_title="برنامج بودى للمشورة الأسرية",
     page_icon="🌸",
@@ -216,6 +216,33 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
 
+# ==================== دالة حقن خصائص الهواتف (لضبط الكيبورد عربي/أرقام) ====================
+def inject_input_attributes(key_name, input_type="text"):
+    """تدخل كود JS صغير لإجبار حقول الإدخال على فتح لوحة الأرقام أو اللغة العربية للأسماء تلقائياً"""
+    if input_type == "numeric":
+        js_code = f"""
+        <script>
+        const doc = window.parent.document;
+        const inputs = doc.querySelectorAll('input[aria-label*="{key_name}"]');
+        inputs.forEach(input => {{
+            input.setAttribute('inputmode', 'numeric');
+            input.setAttribute('pattern', '[0-9]*');
+        }});
+        </script>
+        """
+    else:
+        js_code = f"""
+        <script>
+        const doc = window.parent.document;
+        const inputs = doc.querySelectorAll('input[aria-label*="{key_name}"]');
+        inputs.forEach(input => {{
+            input.setAttribute('lang', 'ar');
+            input.setAttribute('autocapitalize', 'off');
+        }});
+        </script>
+        """
+    st.markdown(js_code, unsafe_allow_html=True)
+
 # ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
     try:
@@ -377,7 +404,6 @@ def parse_national_id(nat_id):
             return "", ""
     return "", ""
 
-# ==================== دالة جلب البيانات ====================
 def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
     clean_id = clean_digits(nat_id_val, 14)
     if len(clean_id) == 14 and st.session_state.get(f"{prefix}_last_fetched_id") != clean_id:
@@ -451,6 +477,8 @@ if menu == "سجل الحوامل":
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ_الزيارة" else ""
 
     raw_id = st.text_input("الرقم القومى للزوجة (أرقام فقط)", value=st.session_state.get("p_الرقم_القومى_للزوجة", ""), key="p_nat_id_wife_txt")
+    inject_input_attributes("الرقم القومى للزوجة", "numeric")
+    
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم_القومى_للزوجة"] = clean_p_id
@@ -475,6 +503,7 @@ if menu == "سجل الحوامل":
         else:
             if col_name == "الرقم_القومى_للزوج":
                 raw_husband_id = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_husband_id_txt")
+                inject_input_attributes(col_name.replace('_', ' '), "numeric")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
@@ -482,11 +511,14 @@ if menu == "سجل الحوامل":
                     if hb_date: st.session_state["p_تاريخ_ميلاد_الزوج"] = hb_date
             elif col_name == "رقم_الموبايل":
                 raw_mob = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_mobile_txt")
+                inject_input_attributes(col_name.replace('_', ' '), "numeric")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_{col_name}")
             else:
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}")
+                if "اسم" in col_name:
+                    inject_input_attributes(col_name.replace('_', ' '), "text")
                 st.session_state[f"p_{col_name}"] = val_text
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
@@ -519,6 +551,8 @@ elif menu == "سجل الأطفال":
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
     raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري - أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
+    inject_input_attributes("الرقم القومى للام", "numeric")
+    
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
@@ -627,12 +661,15 @@ elif menu == "سجل الأطفال":
         else:
             if col_name in ["الرقم_القومى_للاب"]:
                 raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                inject_input_attributes(col_name.replace('_', ' '), "numeric")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
                 raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                inject_input_attributes(col_name.replace('_', ' '), "numeric")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name in ["اسم_الام", "اسم_الاب", "اسم_الطفل"]:
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                inject_input_attributes(col_name.replace('_', ' '), "text")
                 st.session_state[f"c_{col_name}"] = val_text
             elif col_name == "تاريخ_الميلاد_للطفل":
                 def_date = datetime.date.today()
