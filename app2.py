@@ -230,7 +230,6 @@ if menu == "سجل الأطفال":
         motor_res = calculate_motor_development(age_val, w_birth)
         st.session_state["c_النمو_الحركي"] = motor_res
 
-    # إدخال الرقم القومي للأم مع الجلب التلقائي والتنقل بـ Enter
     raw_nat_id_mom = st.text_input(
         "الرقم القومى للام (14 رقم - يدعم الانتقال التلقائي وجلب البيانات)", 
         value=st.session_state.get("c_الرقم_القومى_للام", ""), 
@@ -246,7 +245,6 @@ if menu == "سجل الأطفال":
 
     update_child_calculations()
 
-    # عرض جميع الحقول التفصيلية الـ 23 كاملة بدون أي اختصار أو حذف
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ_التسجيل", "اسم_المستخدم", "الرقم_القومى_للام"]:
             continue
@@ -332,7 +330,6 @@ if menu == "سجل الأطفال":
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}", on_change=update_child_calculations)
                 st.session_state[f"c_{col_name}"] = val_text
 
-    # تنبيه تحذيري مخصص عند اكتشاف تأخر في النمو الحركي
     current_motor_status = st.session_state.get("c_النمو_الحركي", "طبيعى")
     if current_motor_status == "متاخر":
         st.markdown(
@@ -384,7 +381,6 @@ elif menu == "لوحة التحكم والتقارير":
                 df = pd.DataFrame(res.data)
                 st.dataframe(df, use_container_width=True)
                 
-                # زر لتصدير البيانات إلى ملف CSV
                 csv_data = df.to_csv(index=False).encode('utf-8-sig')
                 st.download_button(
                     label="📥 تحميل البيانات كملف CSV",
@@ -407,7 +403,7 @@ elif menu == "البحث والاستعلام":
         try:
             res = supabase.table("children_records").select("*").ilike("اسم_الطفل", f"%{search_query}%").execute()
             if res.data:
-                st.success(تم العثور على {len(res.data)} نتيجة:)
+                st.success(f"تم العثور على {len(res.data)} نتيجة")
                 st.dataframe(res.data, use_container_width=True)
             else:
                 st.info("لم يتم العثور على أي نتائج مطابقة.")
