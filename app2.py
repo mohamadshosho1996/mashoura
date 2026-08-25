@@ -1,11 +1,11 @@
-[cite: 3]import datetime
-[cite: 3]import math
-[cite: 3]import os
-[cite: 3]import io
-[cite: 3]import pandas as pd
-[cite: 3]import streamlit as st
-[cite: 3]from supabase import create_client, Client
-[cite: 3]from streamlit_mic_recorder import mic_recorder
+import datetime
+import math
+import os
+import io
+import pandas as pd
+import streamlit as st
+from supabase import create_client, Client
+from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase ====================
 SUPABASE_URL = "https://ndxzbpmdvqjinpjrbytd.supabase.co"
