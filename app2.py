@@ -24,7 +24,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-enter_navigation_js = """
+# كود JavaScript للإدخال الصوتي وتنقل الحقول بزر Enter
+speech_and_navigation_js = """
 <script>
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter') {
@@ -40,9 +41,37 @@ document.addEventListener('keydown', function(event) {
         }
     }
 });
+
+// دالة الإدخال الصوتي المباشر
+function startVoiceInput(inputId) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("متصفحك لا يدعم الإدخال الصوتي المباشر، يجدر استخدام متصفح Google Chrome.");
+        return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ar-EG';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = function(event) {
+        const speechResult = event.results[0][0].transcript;
+        const inputElement = document.getElementById(inputId);
+        if (inputElement) {
+            inputElement.value = speechResult;
+            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
+
+    recognition.onerror = function(event) {
+        console.error("خطأ في الإدخال الصوتي: ", event.error);
+    };
+
+    recognition.start();
+}
 </script>
 """
-st.components.v1.html(enter_navigation_js, height=0, width=0)
+st.components.v1.html(speech_and_navigation_js, height=0, width=0)
 
 custom_css = """
 <style>
@@ -466,8 +495,14 @@ if menu == "سجل الحوامل":
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
             else:
                 col_label = col_name.replace('_', ' ')
-                val_input = st.text_input(col_label, value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}")
-                st.session_state[f"p_{col_name}"] = val_input
+                # حقل نصي مع زر الإدخال الصوتي الخاص به
+                col_i1, col_i2 = st.columns([5, 1])
+                with col_i1:
+                    val_input = st.text_input(col_label, value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}")
+                    st.session_state[f"p_{col_name}"] = val_input
+                with col_i2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown(f'<button onclick="startVoiceInput(\'p_text_{col_name}\')" style="background-color:#EC4899; color:white; border:none; border-radius:5px; padding:6px 12px; cursor:pointer;">🎤</button>', unsafe_allow_html=True)
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
         final_p_data = {}
@@ -597,8 +632,13 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر_الرحمى_للطفل"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
                 col_label = col_name.replace('_', ' ')
-                val_input = st.text_input(col_label, value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
-                st.session_state[f"c_{col_name}"] = val_input
+                col_i1, col_i2 = st.columns([5, 1])
+                with col_i1:
+                    val_input = st.text_input(col_label, value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                    st.session_state[f"c_{col_name}"] = val_input
+                with col_i2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown(f'<button onclick="startVoiceInput(\'c_text_{col_name}\')" style="background-color:#EC4899; color:white; border:none; border-radius:5px; padding:6px 12px; cursor:pointer;">🎤</button>', unsafe_allow_html=True)
 
     if st.session_state.get("c_النمو_الحركي", "") == "متاخر":
         st.markdown(
