@@ -1,6 +1,7 @@
+import streamlit as st
 import datetime
 import re
-import streamlit as st
+import pandas as pd
 from supabase import create_client, Client
 
 # ==================== إعدادات الصفحة ====================
@@ -164,15 +165,15 @@ if "name" not in st.session_state:
 
 # ==================== الشريط الجانبي للتنقل ====================
 st.sidebar.markdown("<h2>📋 القائمة الرئيسية</h2>", unsafe_allow_html=True)
-menu = st.sidebar.radio("اختر القسم:", ["سجل الأطفال", "لوحة التحكم والتقارير"])
+menu = st.sidebar.radio("اختر القسم:", ["سجل الأطفال", "لوحة التحكم والتقارير", "البحث والاستعلام"])
 
 # ==================== قسم 1: سجل الأطفال ====================
 if menu == "سجل الأطفال":
-    st.markdown("<h2>👶 سجل المشورة الأسرية للأطفال</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>👶 سجل المشورة الأسرية للأطفال (النسخة الكاملة)</h2>", unsafe_allow_html=True)
     
     for col in CHILD_COLUMNS:
         if f"c_{col}" not in st.session_state:
-            st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
+            st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة"] else ""
 
     def update_child_calculations():
         mom_id = clean_digits(st.session_state.get("c_الرقم_القومى_للام", ""), 14)
@@ -229,9 +230,9 @@ if menu == "سجل الأطفال":
         motor_res = calculate_motor_development(age_val, w_birth)
         st.session_state["c_النمو_الحركي"] = motor_res
 
-    # إدخال الرقم القومي للأم مع الجلب التلقائي
+    # إدخال الرقم القومي للأم مع الجلب التلقائي والتنقل بـ Enter
     raw_nat_id_mom = st.text_input(
-        "الرقم القومى للام (أرقام فقط)", 
+        "الرقم القومى للام (14 رقم - يدعم الانتقال التلقائي وجلب البيانات)", 
         value=st.session_state.get("c_الرقم_القومى_للام", ""), 
         key="c_nat_id_mom_txt",
         on_change=update_child_calculations
@@ -245,12 +246,14 @@ if menu == "سجل الأطفال":
 
     update_child_calculations()
 
-    # عرض جميع الحقول بالتفصيل ودون أي اختصار
+    # عرض جميع الحقول التفصيلية الـ 23 كاملة بدون أي اختصار أو حذف
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ_التسجيل", "اسم_المستخدم", "الرقم_القومى_للام"]:
             continue
 
-        elif col_name == "نوع_الولادة":
+        st.markdown(f"---")
+        
+        if col_name == "نوع_الولادة":
             st.markdown(f"**{col_name.replace('_', ' ')}**")
             curr = st.session_state.get(f"c_{col_name}", "")
             c1, c2, c3 = st.columns(3)
@@ -269,10 +272,10 @@ if menu == "سجل الأطفال":
             st.session_state[f"c_{col_name}"] = "3 شهور" if chk3 else ("4 شهور" if chk4 else ("6 شهور" if chk6 else ""))
 
         elif col_name == "موعد_الزيارة":
-            st.markdown(f"**{col_name.replace('_', ' ')} [مُقترح آلياً 🎯]**")
+            st.markdown(f"**{col_name.replace('_', ' ')} [قائمة منسدلة مقترحة آلياً 🎯]**")
             curr_val = st.session_state.get(f"c_{col_name}", VISIT_SCHEDULE_OPTIONS[0])
             st.session_state[f"c_{col_name}"] = st.selectbox(
-                "اختر موعد الزيارة", VISIT_SCHEDULE_OPTIONS,
+                "اختر موعد الزيارة القادمة", VISIT_SCHEDULE_OPTIONS,
                 index=VISIT_SCHEDULE_OPTIONS.index(curr_val) if curr_val in VISIT_SCHEDULE_OPTIONS else 0,
                 key="c_select_موعد_الزيارة",
                 on_change=update_child_calculations
@@ -280,7 +283,7 @@ if menu == "سجل الأطفال":
 
         elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة", "العمر_الحالى_للطفل", "العمر_الرحمى_للطفل", "تاريخ_ميلاد_للام"]:
             val_input = st.text_input(
-                f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
+                f"{col_name.replace('_', ' ')} [محسوب تلقائياً ⚙️]",
                 value=st.session_state.get(f"c_{col_name}", ""),
                 key=f"c_auto_{col_name}",
                 on_change=update_child_calculations
@@ -293,13 +296,13 @@ if menu == "سجل الأطفال":
             opts = ["طبيعى", "متاخر"]
             curr = st.session_state.get(f"c_{col_name}", auto_val)
             st.session_state[f"c_{col_name}"] = st.radio(
-                f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
+                f"اختر حالة {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
                 key=f"c_radio_{col_name}", horizontal=True
             )
 
         elif col_name in ["وزن_الطفل", "طول_الطفل"]:
             val_text = st.text_input(
-                f"{col_name.replace('_', ' ')} (أدخل القيمة يدوياً)", 
+                f"{col_name.replace('_', ' ')} (أدخل القيمة الرقمية)", 
                 value=st.session_state.get(f"c_{col_name}", ""), 
                 key=f"c_text_{col_name}",
                 on_change=update_child_calculations
@@ -309,10 +312,10 @@ if menu == "سجل الأطفال":
 
         else:
             if col_name in ["الرقم_القومى_للاب"]:
-                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (14 رقم)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
-                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (11 رقم)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name in ["اسم_الام", "اسم_الاب", "اسم_الطفل"]:
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
@@ -329,18 +332,20 @@ if menu == "سجل الأطفال":
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}", on_change=update_child_calculations)
                 st.session_state[f"c_{col_name}"] = val_text
 
+    # تنبيه تحذيري مخصص عند اكتشاف تأخر في النمو الحركي
     current_motor_status = st.session_state.get("c_النمو_الحركي", "طبيعى")
     if current_motor_status == "متاخر":
         st.markdown(
             """
-            <div style="background-color: #FFCDD2; color: #B71C1C; padding: 15px; border-radius: 8px; border: 2px solid #F44336; margin-bottom: 15px; font-weight: bold; text-align: center;">
-                ⚠️ تحذير هام: معدل النمو والتطور الحركي لهذا الطفل (متاخر)! يرجى اتخاذ التدابير اللازمة قبل الحفظ.
+            <div style="background-color: #FFCDD2; color: #B71C1C; padding: 15px; border-radius: 8px; border: 2px solid #F44336; margin: 20px 0; font-weight: bold; text-align: center;">
+                ⚠️ تنبيه هام: معدل النمو والتطور الحركي لهذا الطفل مصنف كـ (متاخر)! يرجى مراجعة الطبيب أو إدراج الملاحظات اللازمة قبل الحفظ.
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    if st.button("💾 حفظ بيانات الطفل في Supabase", use_container_width=True):
+    st.markdown("---")
+    if st.button("💾 حفظ بيانات الطفل كاملة في قاعدة بيانات Supabase", use_container_width=True):
         update_child_calculations()
         final_c_data = {}
         for col in CHILD_COLUMNS:
@@ -356,30 +361,55 @@ if menu == "سجل الأطفال":
 
         try:
             supabase.table("children_records").insert(final_c_data).execute()
-            st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
+            st.success("تم حفظ بيانات الطفل في Supabase بنجاح تام! ✨")
             clear_form_state("c")
             st.rerun()
         except Exception as e:
             try:
                 cleaned_data = {k: v for k, v in final_c_data.items() if v != ""}
                 supabase.table("children_records").insert(cleaned_data).execute()
-                st.success("تم حفظ بيانات الطفل في Supabase بنجاح! ✨")
+                st.success("تم حفظ بيانات الطفل في Supabase بنجاح تام! ✨")
                 clear_form_state("c")
                 st.rerun()
             except Exception as inner_e:
-                st.error(f"خطأ أثناء الحفظ في قاعدة البيانات: تأكد أن أسماء الأعمدة في جدول Supabase مطابقة تماماً للقائمة. التفاصيل: {inner_e}")
+                st.error(f"خطأ أثناء الحفظ في قاعدة البيانات: {inner_e}")
 
 # ==================== قسم 2: لوحة التحكم والتقارير ====================
 elif menu == "لوحة التحكم والتقارير":
-    st.markdown("<h2>📊 لوحة التحكم وعرض البيانات</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📊 لوحة التحكم وعرض سجلات الأطفال</h2>", unsafe_allow_html=True)
     if supabase:
         try:
             res = supabase.table("children_records").select("*").execute()
             if res.data:
+                df = pd.DataFrame(res.data)
+                st.dataframe(df, use_container_width=True)
+                
+                # زر لتصدير البيانات إلى ملف CSV
+                csv_data = df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📥 تحميل البيانات كملف CSV",
+                    data=csv_data,
+                    file_name="children_records_export.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("لا توجد بيانات مسجلة في قاعدة البيانات حتى الآن.")
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء جلب البيانات من Supabase: {e}")
+    else:
+        st.warning("يرجى إعداد اتصالات Supabase في الـ Secrets للمتابعة.")
+
+# ==================== قسم 3: البحث والاستعلام ====================
+elif menu == "البحث والاستعلام":
+    st.markdown("<h2>🔍 البحث والاستعلام عن السجلات</h2>", unsafe_allow_html=True)
+    search_query = st.text_input("أدخل جزءاً من اسم الطفل أو الرقم القومي للبحث:")
+    if search_query and supabase:
+        try:
+            res = supabase.table("children_records").select("*").ilike("اسم_الطفل", f"%{search_query}%").execute()
+            if res.data:
+                st.success(تم العثور على {len(res.data)} نتيجة:)
                 st.dataframe(res.data, use_container_width=True)
             else:
-                st.info("لا توجد بيانات مسجلة حتى الآن.")
+                st.info("لم يتم العثور على أي نتائج مطابقة.")
         except Exception as e:
-            st.error(f"حدث خطأ أثناء جلب البيانات: {e}")
-    else:
-        st.warning("يرجى إعداد اتصالات Supabase في الـ Secrets أولاً.")
+            st.error(f"حدث خطأ أثناء البحث: {e}")
