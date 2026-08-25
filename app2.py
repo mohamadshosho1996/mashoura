@@ -216,7 +216,6 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
 
-# ==================== دالة حقن خصائص الهواتف (إجبار الميكروفون والصوت بالعربي) ====================
 def inject_input_attributes(key_name, input_type="text"):
     if input_type == "numeric":
         js_code = f"""
@@ -246,7 +245,6 @@ def inject_input_attributes(key_name, input_type="text"):
         """
     st.markdown(js_code, unsafe_allow_html=True)
 
-# ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
     try:
         w = float(weight_kg)
@@ -455,7 +453,6 @@ if not st.session_state.logged_in:
                 st.error("كلمة المرور غير صحيحة!")
     st.stop()
 
-# ==================== القائمة الجانبية ====================
 st.sidebar.markdown(f"### 👩‍⚕️ أهلاً بكِ، {st.session_state.name}")
 st.sidebar.markdown("---")
 
@@ -533,6 +530,7 @@ if menu == "سجل الحوامل":
                 final_p_data[col] = st.session_state.name
             else:
                 val = st.session_state.get(f"p_{col}", "")
+                # تصدير الرقم القومي وأرقام الموبايل كنص صريح يحافظ على الصفر والتنسيق العددي
                 if "الرقم_القومى" in col or "رقم_الموبايل" in col:
                     val = format_text_for_excel(val)
                 final_p_data[col] = val
@@ -553,7 +551,6 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    # حقل الرقم القومي للأم مع التعبئة التلقائية لتاريخ ميلاد الأم
     raw_nat_id_mom = st.text_input("الرقم القومى للام (أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
     inject_input_attributes("الرقم القومى للام", "numeric")
     
@@ -638,7 +635,6 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة", "العمر_الحالى_للطفل", "العمر_الرحمى_للطفل", "تاريخ_ميلاد_للام"]:
-            # الحقول التلقائية تصبح معروضة للمستخدم ومحدثة آلياً
             st.text_input(
                 f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
                 value=st.session_state.get(f"c_{col_name}", ""),
@@ -685,7 +681,6 @@ elif menu == "سجل الأطفال":
                 chosen_date = st.date_input(col_name.replace('_', ' '), value=def_date, key=f"c_date_{col_name}")
                 st.session_state[f"c_{col_name}"] = str(chosen_date)
                 
-                # حساب العمر الحالي والعمر الرحمي للطفل بدقة حسب الطلب
                 delta_days = (datetime.date.today() - chosen_date).days
                 if delta_days >= 0:
                     if delta_days < 7:
@@ -702,7 +697,6 @@ elif menu == "سجل الأطفال":
                     
                     st.session_state["c_العمر_الحالى_للطفل"] = age_str
                     
-                    # العمر الرحمي التلقائي
                     gestational_weeks = max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))
                     st.session_state["c_العمر_الرحمى_للطفل"] = f"{gestational_weeks} أسبوع"
             else:
@@ -729,6 +723,7 @@ elif menu == "سجل الأطفال":
                 final_c_data[col] = st.session_state.name
             else:
                 val = st.session_state.get(f"c_{col}", "")
+                # تصدير الرقم القومي وأرقام الموبايل كنص صريح يحافظ على الصفر والتنسيق العددي
                 if "الرقم_القومى" in col or "رقم_الموبايل" in col:
                     val = format_text_for_excel(val)
                 final_c_data[col] = val
@@ -785,15 +780,15 @@ elif menu == "استيراد البيانات (Excel/CSV)":
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith('.csv'):
-                df_import = pd.read_csv(uploaded_file)
+                df_import = pd.read_csv(uploaded_file, dtype=str)
             else:
-                df_import = pd.read_excel(uploaded_file)
+                df_import = pd.read_excel(uploaded_file, dtype=str)
             
             st.write("معاينة البيانات المستوردة:", df_import.head())
             if st.button("رفع وحفظ البيانات في قاعدة البيانات"):
                 records_to_insert = df_import.to_dict(orient="records")
                 for rec in records_to_insert:
-                    cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
+                    cleaned_rec = {str(k): (str(v).replace("'", "") if pd.notna(v) else "") for k, v in rec.items()}
                     supabase.table(db_table_name).insert(cleaned_rec).execute()
                 st.success("تم رفع واستيراد البيانات بنجاح إلى Supabase! 🚀")
         except Exception as e:
