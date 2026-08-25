@@ -8,7 +8,7 @@ from supabase import create_client, Client
 from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase ====================
-SUPABASE_URL ="https://yrbkerayycejpsjnmusk.supabase.co/rest/v1/"
+SUPABASE_URL ="https://yrbkerayycejpjsnmusk.supabase.co"
 SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -409,21 +409,22 @@ def parse_national_id(nat_id):
             return "", ""
     return "", ""
 
+# ==================== الدالة المحسنة والآمنة لجلب البيانات ====================
 def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
     clean_id = clean_digits(nat_id_val, 14)
     if len(clean_id) == 14 and st.session_state.get(f"{prefix}_last_fetched_id") != clean_id:
         try:
             response = supabase.table(table_name).select("*").eq(id_col_name, clean_id).execute()
-            if response.data:
+            if response and hasattr(response, 'data') and response.data:
                 latest_data = response.data[-1]
                 cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
                 for col in cols:
-                    if col in latest_data and latest_data[col]:
+                    if col in latest_data and latest_data[col] is not None:
                         st.session_state[f"{prefix}_{col}"] = str(latest_data[col]).replace("'", "")
                 st.session_state[f"{prefix}_last_fetched_id"] = clean_id
                 st.toast("⚡ تم استدعاء بيانات الحساب المسجل تلقائياً من Supabase!", icon="✨")
         except Exception as e:
-            print(f"Fetch Error: {e}")
+            print(f"Fetch Info: {e}")
 
 def clear_form_state(prefix):
     cols = PREGNANT_COLUMNS if prefix == "p" else CHILD_COLUMNS
