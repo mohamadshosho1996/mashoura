@@ -8,8 +8,8 @@ from supabase import create_client, Client
 from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase ====================
-SUPABASE_URL = "https://ndxzbpmdvqjinpjrbytd.supabase.co"
-SUPABASE_KEY = "sb_publishable_ubwXt_RivsCvAT6nFE0hoQ_3DD5aYOK"
+SUPABASE_URL ="https://yrbkerayycejpjsnmusk.supabase.co"
+SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==================== إعدادات الصفحة والتصميم ====================
