@@ -470,7 +470,6 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ_الزيارة" else ""
 
-    # حقل الرقم القومي للزوجة (يمكن الكتابة أو استخدام ميكريفون الكيبورد)
     raw_id = st.text_input("الرقم القومى للزوجة", value=st.session_state.get("p_الرقم_القومى_للزوجة", ""), key="p_nat_id_wife_txt")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
@@ -494,8 +493,6 @@ if menu == "سجل الحوامل":
                 key=f"p_radio_{col_name}", horizontal=True
             )
         else:
-            if col_name == "الرقم_القومى_للزيج": # أو الزوج
-                pass
             if col_name == "الرقم_القومى_للزوج":
                 raw_husband_id = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_husband_id_txt")
                 clean_h_id = clean_digits(raw_husband_id, 14)
@@ -541,7 +538,6 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    # حقل الرقم القومي للأم (يمكن الكتابة أو استخدام ميكريفون الكيبورد)
     raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
@@ -763,7 +759,7 @@ elif menu == "استيراد البيانات (Excel/CSV)":
                     cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
                     supabase.table(db_table_name).insert(cleaned_rec).execute()
                 st.success("تم رفع واستيراد البيانات بنجاح إلى Supabase! 🚀")
-        exceptException as e:
+        except Exception as e:
             st.error(f"حدث خطأ أثناء استيراد الملف: {e}")
 
 # ==================== 5. إدارة المستخدمين ====================
