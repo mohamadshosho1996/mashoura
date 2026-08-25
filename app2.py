@@ -7,14 +7,9 @@ import streamlit as st
 from supabase import create_client, Client
 from streamlit_mic_recorder import mic_recorder
 
-# ==================== إعدادات Supabase (الآمنة عبر Secrets) ====================
-try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except Exception:
-    # قيم افتراضية احتياطية في حال التشغيل المحلي
-    SUPABASE_URL = "https://yrbkerayycejpjsnmusk.supabase.co"
-    SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
+# ==================== إعدادات Supabase (مباشرة بدون Secrets) ====================
+SUPABASE_URL = "https://yrbkerayycejpjsnmusk.supabase.co"
+SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -415,7 +410,7 @@ def parse_national_id(nat_id):
             return "", ""
     return "", ""
 
-# ==================== الدالة المحسنة والآمنة لجلب البيانات ====================
+# ==================== دالة جلب البيانات ====================
 def fetch_auto_data_from_supabase(table_name, id_col_name, nat_id_val, prefix):
     clean_id = clean_digits(nat_id_val, 14)
     if len(clean_id) == 14 and st.session_state.get(f"{prefix}_last_fetched_id") != clean_id:
