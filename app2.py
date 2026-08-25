@@ -235,11 +235,7 @@ def inject_input_attributes(key_name, input_type="text"):
         const inputs = doc.querySelectorAll('input[aria-label*="{key_name}"]');
         inputs.forEach(input => {{
             input.setAttribute('lang', 'ar-EG');
-            input.setAttribute('x-webkit-speech', 'true');
-            input.setAttribute('speech', 'true');
             input.setAttribute('autocomplete', 'off');
-            input.setAttribute('autocorrect', 'off');
-            input.setAttribute('spellcheck', 'false');
         }});
         </script>
         """
@@ -322,33 +318,6 @@ def calculate_motor_development(age_months_val, birth_w, current_w):
             return "طبيعى"
     except Exception:
         return "طبيعى"
-
-def get_best_visit_schedule(age_months_val):
-    try:
-        if isinstance(age_months_val, str):
-            clean_str = age_months_val.replace("شهر", "").replace("أسبوع", "").replace("يوم", "").strip()
-            if not clean_str:
-                return VISIT_SCHEDULE_OPTIONS[0]
-            age_m = float(clean_str)
-            if "أسبوع" in age_months_val:
-                age_m = age_m / 4.33
-            elif "يوم" in age_months_val:
-                age_m = age_m / 30.44
-        else:
-            age_m = float(age_months_val) if age_months_val else 0.0
-
-        closest_option = VISIT_SCHEDULE_OPTIONS[0]
-        min_diff = float('inf')
-
-        for option in VISIT_SCHEDULE_OPTIONS:
-            target_m = VISIT_MONTHS_MAP[option]
-            diff = abs(target_m - age_m)
-            if diff < min_diff:
-                min_diff = diff
-                closest_option = option
-        return closest_option
-    except (ValueError, TypeError):
-        return VISIT_SCHEDULE_OPTIONS[0]
 
 def calculate_next_visit_date(current_visit_date_str, current_schedule_option):
     try:
@@ -468,6 +437,16 @@ if st.sidebar.button("🚪 تسجيل الخروج"):
 
 today_str = datetime.date.today().strftime("%Y-%m-%d")
 
+# ==================== دالة التحديث الفوري للرقم القومي للأم ====================
+def on_mom_id_change():
+    raw_val = st.session_state.get("c_nat_id_mom_txt", "")
+    clean_id = clean_digits(raw_val, 14)
+    st.session_state["c_الرقم_القومى_للام"] = clean_id
+    if len(clean_id) == 14:
+        b_mom, _ = parse_national_id(clean_id)
+        if b_mom:
+            st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
+
 # ==================== 1. سجل الحوامل ====================
 if menu == "سجل الحوامل":
     st.markdown("<h2>🤰 سجل المشورة الأسرية للسيدات الحوامل</h2>", unsafe_allow_html=True)
@@ -550,7 +529,12 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
+    raw_nat_id_mom = st.text_input(
+        "الرقم القومى للام (أرقام فقط)", 
+        value=st.session_state.get("c_الرقم_القومى_للام", ""), 
+        key="c_nat_id_mom_txt",
+        on_change=on_mom_id_change
+    )
     inject_input_attributes("الرقم القومى للام", "numeric")
     
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
@@ -562,10 +546,9 @@ elif menu == "سجل الأطفال":
                 st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
             
-    # التحقق المباشر من الرقم القومي لتوليد تاريخ الميلاد فوراً
     if len(st.session_state.get("c_الرقم_القومى_للام", "")) == 14:
         b_mom_direct, _ = parse_national_id(st.session_state["c_الرقم_القومى_للام"])
-        if b_mom_direct and not st.session_state.get("c_تاريخ_ميلاد_للام"):
+        if b_mom_direct:
             st.session_state["c_تاريخ_ميلاد_للام"] = b_mom_direct
 
     for col_name in CHILD_COLUMNS:
@@ -754,6 +737,18 @@ elif menu == "استعراض البيانات والداشبورد":
             if c not in df_view.columns:
                 df_view[c] = ""
         df_view = df_view[target_cols]
+
+        # قسم الداشبورد البسيط
+        if not df_view.empty:
+            col_d1, col_d2, col_d3 = st.columns(3)
+            with col_d1:
+                st.metric("إجمالي السجلات المسجلة", len(df_view))
+            with col_d2:
+                if "اسم_المستخدم" in df_view.columns:
+                    st.metric("عدد المستخدمين النشطين", df_view["اسم_المستخدم"].nunique())
+            with col_d3:
+                st.metric("حالة الاتصال بقاعدة البيانات", "متصل ✅")
+            st.markdown("---")
 
         st.dataframe(df_view, use_container_width=True)
 
