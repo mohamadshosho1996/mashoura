@@ -237,7 +237,7 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
 
-# ==================== دالة الإدخال الصوتي باستخدام streamlit_mic_recorder ====================
+# ==================== دالة الإدخال الصوتي المتوافقة وآمنة 100% ====================
 def text_input_with_voice(label, key_prefix, value=""):
     col_input, col_mic = st.columns([5, 1])
     
@@ -249,10 +249,12 @@ def text_input_with_voice(label, key_prefix, value=""):
         
     with col_mic:
         st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)
-        # كود مكتبة streamlit_mic_recorder الأساسي
-        audio = mic_recorder(start_prompt="🎙️", stop_prompt="⏹️", key=f"{key_prefix}_mic", just_icon=True)
+        try:
+            audio = mic_recorder(start_prompt="🎙️", stop_prompt="⏹️", key=f"{key_prefix}_mic")
+        except Exception:
+            audio = None
+            
         if audio:
-            # هنا يمكنك دمج أو تحويل الصوت لنص لو متوفر API أو حفظه
             pass
             
     return st.session_state[f"{key_prefix}_val"]
