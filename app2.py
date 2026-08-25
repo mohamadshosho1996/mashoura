@@ -216,9 +216,8 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
 
-# ==================== دالة حقن خصائص الهواتف (لضبط الكيبورد عربي/أرقام) ====================
+# ==================== دالة حقن خصائص الهواتف (إجبار الميكروفون والصوت بالعربي) ====================
 def inject_input_attributes(key_name, input_type="text"):
-    """تدخل كود JS صغير لإجبار حقول الإدخال على فتح لوحة الأرقام أو اللغة العربية للأسماء تلقائياً"""
     if input_type == "numeric":
         js_code = f"""
         <script>
@@ -236,8 +235,12 @@ def inject_input_attributes(key_name, input_type="text"):
         const doc = window.parent.document;
         const inputs = doc.querySelectorAll('input[aria-label*="{key_name}"]');
         inputs.forEach(input => {{
-            input.setAttribute('lang', 'ar');
-            input.setAttribute('autocapitalize', 'off');
+            input.setAttribute('lang', 'ar-EG');
+            input.setAttribute('x-webkit-speech', 'true');
+            input.setAttribute('speech', 'true');
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('spellcheck', 'false');
         }});
         </script>
         """
@@ -550,7 +553,8 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري - أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
+    # حقل الرقم القومي للأم مع التعبئة التلقائية لتاريخ ميلاد الأم
+    raw_nat_id_mom = st.text_input("الرقم القومى للام (أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
     inject_input_attributes("الرقم القومى للام", "numeric")
     
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
@@ -558,7 +562,8 @@ elif menu == "سجل الأطفال":
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
         if len(clean_c_id) == 14:
             b_mom, _ = parse_national_id(clean_c_id)
-            if b_mom: st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
+            if b_mom: 
+                st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
 
     auto_birth_hc = calculate_birth_head_circumference(
@@ -632,7 +637,8 @@ elif menu == "سجل الأطفال":
                 key="c_select_موعد_الزيارة"
             )
 
-        elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة"]:
+        elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة", "العمر_الحالى_للطفل", "العمر_الرحمى_للطفل", "تاريخ_ميلاد_للام"]:
+            # الحقول التلقائية تصبح معروضة للمستخدم ومحدثة آلياً
             st.text_input(
                 f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
                 value=st.session_state.get(f"c_{col_name}", ""),
@@ -678,13 +684,27 @@ elif menu == "سجل الأطفال":
                     except: pass
                 chosen_date = st.date_input(col_name.replace('_', ' '), value=def_date, key=f"c_date_{col_name}")
                 st.session_state[f"c_{col_name}"] = str(chosen_date)
+                
+                # حساب العمر الحالي والعمر الرحمي للطفل بدقة حسب الطلب
                 delta_days = (datetime.date.today() - chosen_date).days
                 if delta_days >= 0:
-                    if delta_days < 7: age_str = f"{delta_days} يوم"
-                    elif delta_days < 30: age_str = f"{round(delta_days/7)} أسبوع"
-                    else: age_str = f"{round(delta_days/30.44, 1)} شهر"
+                    if delta_days < 7:
+                        age_str = f"{delta_days} يوم"
+                    elif delta_days < 30:
+                        weeks = round(delta_days / 7)
+                        age_str = f"{weeks} أسبوع"
+                    else:
+                        months = round(delta_days / 30.44, 1)
+                        if months.is_integer():
+                            age_str = str(int(months))
+                        else:
+                            age_str = str(months)
+                    
                     st.session_state["c_العمر_الحالى_للطفل"] = age_str
-                    st.session_state["c_العمر_الرحمى_للطفل"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
+                    
+                    # العمر الرحمي التلقائي
+                    gestational_weeks = max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))
+                    st.session_state["c_العمر_الرحمى_للطفل"] = f"{gestational_weeks} أسبوع"
             else:
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_text
