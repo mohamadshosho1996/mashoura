@@ -16,33 +16,13 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ==================== إعدادات الصفحة والتصميم ====================
+# ==================== إعدادات الصفحة والتصميم (بدون جافاسكريبت ثقيل لتسريع الاستجابة) ====================
 st.set_page_config(
     page_title="برنامج بودى للمشورة الأسرية",
     page_icon="🌸",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-enter_navigation_js = """
-<script>
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {
-        const target = event.target;
-        if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
-            event.preventDefault();
-            const formElements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])'));
-            const index = formElements.indexOf(target);
-            if (index > -1 && index + 1 < formElements.length) {
-                formElements[index + 1].focus();
-                formElements[index + 1].click();
-            }
-        }
-    }
-});
-</script>
-"""
-st.components.v1.html(enter_navigation_js, height=0, width=0)
 
 custom_css = """
 <style>
@@ -470,7 +450,7 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ_الزيارة" else ""
 
-    raw_id = st.text_input("الرقم القومى للزوجة", value=st.session_state.get("p_الرقم_القومى_للزوجة", ""), key="p_nat_id_wife_txt")
+    raw_id = st.text_input("الرقم القومى للزوجة (أرقام فقط)", value=st.session_state.get("p_الرقم_القومى_للزوجة", ""), key="p_nat_id_wife_txt")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم_القومى_للزوجة"] = clean_p_id
@@ -494,14 +474,14 @@ if menu == "سجل الحوامل":
             )
         else:
             if col_name == "الرقم_القومى_للزوج":
-                raw_husband_id = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_husband_id_txt")
+                raw_husband_id = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_husband_id_txt")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
                     hb_date, _ = parse_national_id(clean_h_id)
                     if hb_date: st.session_state["p_تاريخ_ميلاد_الزوج"] = hb_date
             elif col_name == "رقم_الموبايل":
-                raw_mob = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_mobile_txt")
+                raw_mob = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_mobile_txt")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_{col_name}")
@@ -538,7 +518,7 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
+    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري - أرقام فقط)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
@@ -646,10 +626,10 @@ elif menu == "سجل الأطفال":
 
         else:
             if col_name in ["الرقم_القومى_للاب"]:
-                raw_val = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
-                raw_val = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                raw_val = st.text_input(f"{col_name.replace('_', ' ')} (أرقام فقط)", value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name in ["اسم_الام", "اسم_الاب", "اسم_الطفل"]:
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
