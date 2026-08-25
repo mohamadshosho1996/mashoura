@@ -242,17 +242,14 @@ def text_input_with_voice(label, key_prefix, value=""):
     
     with col_f2:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        # زر الميكروفون الصوتي للحقل
+        # تم إزالة المعامل just_icon لضمان عدم حدوث خطأ TypeError
         audio = mic_recorder(
             start_prompt="🎤",
             stop_prompt="⏹️",
-            key=f"{key_prefix}_mic",
-            just_icon=True
+            key=f"{key_prefix}_mic"
         )
     
     if audio and "bytes" in audio:
-        # هنا يمكن معالجة الصوت أو تركه للمتصفح إذا توفر النص، 
-        # كحل متوافق مع Streamlit Mic Recorder، نظهر تنبيه نجاح التسجيل الصوتي
         st.toast(f"تم تسجيل الصوت بنجاح لـ: {label}", icon="🎙️")
         
     return val
