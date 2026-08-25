@@ -247,8 +247,8 @@ def inject_input_attributes(key_name, input_type="text"):
 
 def calculate_birth_head_circumference(weight_kg, length_cm):
     try:
-        w = float(weight_kg)
-        l = float(length_cm)
+        w = float(weight_kg) if weight_kg else 0.0
+        l = float(length_cm) if length_cm else 0.0
         if w > 0 and l > 0:
             head_circ = (l / 2.0) + 9.5 + ((w - 3.3) * 0.8)
             return str(round(head_circ, 1))
@@ -268,7 +268,7 @@ def calculate_current_head_circumference(age_months_val, birth_w, birth_l, curre
                 elif "يوم" in age_months_val:
                     age_m = age_m / 30.44
         else:
-            age_m = float(age_months_val)
+            age_m = float(age_months_val) if age_months_val else 0.0
 
         base_hc = float(calculate_birth_head_circumference(birth_w, birth_l)) if birth_w and birth_l else 34.5
 
@@ -303,7 +303,7 @@ def calculate_motor_development(age_months_val, birth_w, current_w):
                 elif "يوم" in age_months_val:
                     age_m = age_m / 30.44
         else:
-            age_m = float(age_months_val)
+            age_m = float(age_months_val) if age_months_val else 0.0
 
         cw = float(current_w) if current_w else 0.0
         bw = float(birth_w) if birth_w else 0.0
@@ -335,7 +335,7 @@ def get_best_visit_schedule(age_months_val):
             elif "يوم" in age_months_val:
                 age_m = age_m / 30.44
         else:
-            age_m = float(age_months_val)
+            age_m = float(age_months_val) if age_months_val else 0.0
 
         closest_option = VISIT_SCHEDULE_OPTIONS[0]
         min_diff = float('inf')
@@ -530,7 +530,6 @@ if menu == "سجل الحوامل":
                 final_p_data[col] = st.session_state.name
             else:
                 val = st.session_state.get(f"p_{col}", "")
-                # تصدير الرقم القومي وأرقام الموبايل كنص صريح يحافظ على الصفر والتنسيق العددي
                 if "الرقم_القومى" in col or "رقم_الموبايل" in col:
                     val = format_text_for_excel(val)
                 final_p_data[col] = val
@@ -562,42 +561,6 @@ elif menu == "سجل الأطفال":
             if b_mom: 
                 st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
-
-    auto_birth_hc = calculate_birth_head_circumference(
-        st.session_state.get("c_وزن_الطفل"),
-        st.session_state.get("c_طول_الطفل")
-    )
-    if auto_birth_hc:
-        st.session_state["c_مقاس_راس_الطفل"] = auto_birth_hc
-
-    auto_curr_hc = calculate_current_head_circumference(
-        st.session_state.get("c_العمر_الحالى_للطفل"),
-        st.session_state.get("c_وزن_الطفل"),
-        st.session_state.get("c_طول_الطفل"),
-        st.session_state.get("c_الوزن"),
-        st.session_state.get("c_الطول")
-    )
-    if auto_curr_hc:
-        st.session_state["c_محيط_الرأس"] = auto_curr_hc
-
-    auto_motor_dev = calculate_motor_development(
-        st.session_state.get("c_العمر_الحالى_للطفل"),
-        st.session_state.get("c_وزن_الطفل"),
-        st.session_state.get("c_الوزن")
-    )
-    if auto_motor_dev:
-        st.session_state["c_النمو_الحركي"] = auto_motor_dev
-
-    auto_visit_schedule = get_best_visit_schedule(st.session_state.get("c_العمر_الحالى_للطفل", 0))
-    if not st.session_state.get("c_موعد_الزيارة") or st.session_state.get("c_auto_visit_set") != auto_visit_schedule:
-        st.session_state["c_موعد_الزيارة"] = auto_visit_schedule
-        st.session_state["c_auto_visit_set"] = auto_visit_schedule
-
-    auto_next_visit = calculate_next_visit_date(
-        st.session_state.get("c_تاريخ_الزيارة", today_str),
-        st.session_state.get("c_موعد_الزيارة")
-    )
-    st.session_state["c_تخطيط_الزيارة"] = auto_next_visit
 
     for col_name in CHILD_COLUMNS:
         if col_name in ["تاريخ_التسجيل", "اسم_المستخدم", "الرقم_القومى_للام"]:
@@ -635,6 +598,17 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة", "العمر_الحالى_للطفل", "العمر_الرحمى_للطفل", "تاريخ_ميلاد_للام"]:
+            # معالجة حسابية فورية للتأكد من تحديث الحقول التلقائية
+            if col_name == "مقاس_راس_الطفل":
+                val = calculate_birth_head_circumference(st.session_state.get("c_وزن_الطفل"), st.session_state.get("c_طول_الطفل"))
+                st.session_state[f"c_{col_name}"] = val
+            elif col_name == "محيط_الرأس":
+                val = calculate_current_head_circumference(st.session_state.get("c_العمر_الحالى_للطفل"), st.session_state.get("c_وزن_الطفل"), st.session_state.get("c_طول_الطفل"), st.session_state.get("c_الوزن"), st.session_state.get("c_الطول"))
+                st.session_state[f"c_{col_name}"] = val
+            elif col_name == "تخطيط_الزيارة":
+                val = calculate_next_visit_date(st.session_state.get("c_تاريخ_الزيارة", today_str), st.session_state.get("c_موعد_الزيارة"))
+                st.session_state[f"c_{col_name}"] = val
+
             st.text_input(
                 f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
                 value=st.session_state.get(f"c_{col_name}", ""),
@@ -643,9 +617,17 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name == "النمو_الحركي":
-            st.markdown(f"**{col_name.replace('_', ' ')} [تحديد آلي بناءً على القياسات ⚙️]**")
+            auto_val = calculate_motor_development(
+                st.session_state.get("c_العمر_الحالى_للطفل"),
+                st.session_state.get("c_وزن_الطفل"),
+                st.session_state.get("c_الوزن")
+            )
+            if not st.session_state.get(f"c_{col_name}"):
+                st.session_state[f"c_{col_name}"] = auto_val
+
+            st.markdown(f"**{col_name.replace('_', ' ')} [تحديد آلي بناءً على القياسات: {auto_val}] ⚙️**")
             opts = DROPDOWN_OPTIONS[col_name]
-            curr = st.session_state.get(f"c_{col_name}", opts[0])
+            curr = st.session_state.get(f"c_{col_name}", auto_val)
             st.session_state[f"c_{col_name}"] = st.radio(
                 f"اختر {col_name}", opts, index=(opts.index(curr) if curr in opts else 0),
                 key=f"c_radio_{col_name}", horizontal=True
@@ -703,12 +685,21 @@ elif menu == "سجل الأطفال":
                 val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_text
 
-    current_motor_status = st.session_state.get("c_النمو_الحركي", "")
+    current_motor_status = st.session_state.get("c_النمو_الحركي", "طبيعى")
     if current_motor_status == "متاخر":
         st.markdown(
             """
             <div style="background-color: #FFCDD2; color: #B71C1C; padding: 15px; border-radius: 8px; border: 2px solid #F44336; margin-bottom: 15px; font-weight: bold; text-align: center;">
                 ⚠️ تحذير هام: معدل النمو والتطور الحركي لهذا الطفل (متاخر)! يرجى اتخاذ التدابير اللازمة قبل الحفظ.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"""
+            <div style="background-color: #C8E6C9; color: #1B5E20; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+                ✅ حالة النمو والتطور الحركي للطفل مقيمة كـ: ({current_motor_status})
             </div>
             """,
             unsafe_allow_html=True
@@ -723,7 +714,6 @@ elif menu == "سجل الأطفال":
                 final_c_data[col] = st.session_state.name
             else:
                 val = st.session_state.get(f"c_{col}", "")
-                # تصدير الرقم القومي وأرقام الموبايل كنص صريح يحافظ على الصفر والتنسيق العددي
                 if "الرقم_القومى" in col or "رقم_الموبايل" in col:
                     val = format_text_for_excel(val)
                 final_c_data[col] = val
@@ -734,7 +724,7 @@ elif menu == "سجل الأطفال":
             clear_form_state("c")
             st.rerun()
         except Exception as e:
-            st.error(f"خطأ أثناء الحفظ: {e}")
+            st.error(f"خطأ أثناء الحفظ: تأكد من تطابق الحقول مع قاعدة البيانات. التفاصيل: {e}")
 
 # ==================== 3. استعراض البيانات والداشبورد ====================
 elif menu == "استعراض البيانات والداشبورد":
