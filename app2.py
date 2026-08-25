@@ -5,7 +5,6 @@ import io
 import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
-from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase (آمنة عبر Secrets) ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
@@ -236,22 +235,6 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_مستشفى", "مصدر_الاحالة_عيادة",
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
-
-# ==================== دالة حقل النص مع الإدخال الصوتي (للموبايل والكيبورد) ====================
-def text_input_with_voice(label, key_prefix, value=""):
-    col_f1, col_f2 = st.columns([5, 1])
-    with col_f1:
-        val = st.text_input(label, value=value, key=f"{key_prefix}_txt")
-    with col_f2:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        audio = mic_recorder(
-            start_prompt="🎤",
-            stop_prompt="⏹️",
-            key=f"{key_prefix}_mic"
-        )
-    if audio and "bytes" in audio:
-        st.toast(f"تم تسجيل الصوت بنجاح لـ: {label}", icon="🎙️")
-    return val
 
 # ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
@@ -487,8 +470,8 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ_الزيارة" else ""
 
-    # حقل الرقم القومي للزوجة مع دعم الإدخال الصوتي واليدوي
-    raw_id = text_input_with_voice("الرقم القومى للزوجة", "p_nat_id_wife")
+    # حقل الرقم القومي للزوجة (يمكن الكتابة أو استخدام ميكريفون الكيبورد)
+    raw_id = st.text_input("الرقم القومى للزوجة", value=st.session_state.get("p_الرقم_القومى_للزوجة", ""), key="p_nat_id_wife_txt")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم_القومى_للزوجة"] = clean_p_id
@@ -511,23 +494,22 @@ if menu == "سجل الحوامل":
                 key=f"p_radio_{col_name}", horizontal=True
             )
         else:
+            if col_name == "الرقم_القومى_للزيج": # أو الزوج
+                pass
             if col_name == "الرقم_القومى_للزوج":
-                raw_husband_id = text_input_with_voice(col_name.replace('_', ' '), f"p_husband_id")
+                raw_husband_id = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_husband_id_txt")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
                     hb_date, _ = parse_national_id(clean_h_id)
                     if hb_date: st.session_state["p_تاريخ_ميلاد_الزوج"] = hb_date
             elif col_name == "رقم_الموبايل":
-                raw_mob = text_input_with_voice(col_name.replace('_', ' '), f"p_mobile")
+                raw_mob = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_mobile_txt")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
-            elif col_name in ["اسم_الزوجة", "اسم_الزوج"]:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"p_text_{col_name}")
-                st.session_state[f"p_{col_name}"] = val_text
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
-                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
+                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", value=st.session_state.get(f"p_{col_name}", ""), key=f"p_{col_name}")
             else:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"p_text_{col_name}")
+                val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}")
                 st.session_state[f"p_{col_name}"] = val_text
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
@@ -559,8 +541,8 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    # حقل الرقم القومي للأم للأطفال مع دعم الصوتي واليدوي
-    raw_nat_id_mom = text_input_with_voice("الرقم القومى للام (اختياري)", "c_nat_id_mom")
+    # حقل الرقم القومي للأم (يمكن الكتابة أو استخدام ميكريفون الكيبورد)
+    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", value=st.session_state.get("c_الرقم_القومى_للام", ""), key="c_nat_id_mom_txt")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
@@ -668,13 +650,13 @@ elif menu == "سجل الأطفال":
 
         else:
             if col_name in ["الرقم_القومى_للاب"]:
-                raw_val = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
+                raw_val = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
-                raw_val = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
+                raw_val = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
             elif col_name in ["اسم_الام", "اسم_الاب", "اسم_الطفل"]:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
+                val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_text
             elif col_name == "تاريخ_الميلاد_للطفل":
                 def_date = datetime.date.today()
@@ -691,7 +673,7 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر_الحالى_للطفل"] = age_str
                     st.session_state["c_العمر_الرحمى_للطفل"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
-                val_text = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
+                val_text = st.text_input(col_name.replace('_', ' '), value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = val_text
 
     current_motor_status = st.session_state.get("c_النمو_الحركي", "")
@@ -781,7 +763,7 @@ elif menu == "استيراد البيانات (Excel/CSV)":
                     cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
                     supabase.table(db_table_name).insert(cleaned_rec).execute()
                 st.success("تم رفع واستيراد البيانات بنجاح إلى Supabase! 🚀")
-        except Exception as e:
+        exceptException as e:
             st.error(f"حدث خطأ أثناء استيراد الملف: {e}")
 
 # ==================== 5. إدارة المستخدمين ====================
