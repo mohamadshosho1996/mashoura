@@ -5,7 +5,6 @@ import io
 import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
-from streamlit_mic_recorder import mic_recorder
 
 # ==================== إعدادات Supabase (آمنة عبر Secrets) ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
@@ -467,18 +466,8 @@ if menu == "سجل الحوامل":
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
             else:
                 col_label = col_name.replace('_', ' ')
-                st.markdown(f"**{col_label}**")
-                
-                # إضافة أداة الميكروفون المساعدة للحقول النصية لمنع أي أخطاء في الإدخال الصوتي
-                mic_col1, mic_col2 = st.columns([10, 1])
-                with mic_col1:
-                    val_input = st.text_input(col_label, value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}", label_visibility="collapsed")
-                    st.session_state[f"p_{col_name}"] = val_input
-                with mic_col2:
-                    audio_val = mic_recorder(start_prompt="🎙️", stop_prompt="⏹️", key=f"p_mic_{col_name}")
-                    if audio_val and 'text' in audio_val and audio_val['text']:
-                        st.session_state[f"p_{col_name}"] = audio_val['text']
-                        st.rerun()
+                val_input = st.text_input(col_label, value=st.session_state.get(f"p_{col_name}", ""), key=f"p_text_{col_name}")
+                st.session_state[f"p_{col_name}"] = val_input
 
     if st.button("💾 حفظ بيانات الحامل في Supabase", use_container_width=True):
         final_p_data = {}
@@ -608,16 +597,8 @@ elif menu == "سجل الأطفال":
                     st.session_state["c_العمر_الرحمى_للطفل"] = f"{max(24, min(42, 40 - max(0, round((280 - delta_days) / 7))))} أسبوع"
             else:
                 col_label = col_name.replace('_', ' ')
-                st.markdown(f"**{col_label}**")
-                mic_col1, mic_col2 = st.columns([10, 1])
-                with mic_col1:
-                    val_input = st.text_input(col_label, value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}", label_visibility="collapsed")
-                    st.session_state[f"c_{col_name}"] = val_input
-                with mic_col2:
-                    audio_val = mic_recorder(start_prompt="🎙️", stop_prompt="⏹️", key=f"c_mic_{col_name}")
-                    if audio_val and 'text' in audio_val and audio_val['text']:
-                        st.session_state[f"c_{col_name}"] = audio_val['text']
-                        st.rerun()
+                val_input = st.text_input(col_label, value=st.session_state.get(f"c_{col_name}", ""), key=f"c_text_{col_name}")
+                st.session_state[f"c_{col_name}"] = val_input
 
     if st.session_state.get("c_النمو_الحركي", "") == "متاخر":
         st.markdown(
