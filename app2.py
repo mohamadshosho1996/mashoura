@@ -203,7 +203,7 @@ PREGNANT_COLUMNS = [
     "المتاعب_البسيطة", "المتاعب_في_الشهور_الأخيرة", "علامات_الخطر_أثناء_الحمل",
     "مشاكل_الولادة_المبكرة", "حركة_الجنين",
     "تغير_لون_الجلد", "ارتداء_الملابس_الفضفاضة",
-    "الستعداد_للولادة", "علامات_الولادة", "مميزات_الولادة_الطبيعية",
+    "الاستعداد_للولادة", "علامات_الولادة", "مميزات_الولادة_الطبيعية",
     "الساعة_الذهبية_الأولى", "ملامسة_الجلد_للجلد", "البداية_المبكرة_للرضاعة",
     "الرضاعة_الطبيعية_المطلقة", "اهمية_المباعدة", "وسائل_تنظيم_الأسرة", "استخدام_وسيلة_بعد_الولادة",
     "التطور_العصبي_والنفسي"
@@ -237,27 +237,21 @@ YES_NO_CHECKBOX_FIELDS = [
     "مصدر_الاحالة_تطعيمات", "مصدر_الاحالة_نصيحة"
 ]
 
-# ==================== دالة الإدخال الصوتي المتوافقة وآمنة 100% ====================
+# ==================== دالة حقل النص مع الإدخال الصوتي (للموبايل والكيبورد) ====================
 def text_input_with_voice(label, key_prefix, value=""):
-    col_input, col_mic = st.columns([5, 1])
-    
-    current_val = st.session_state.get(f"{key_prefix}_val", value)
-    
-    with col_input:
-        val = st.text_input(label, value=current_val, key=f"{key_prefix}_txt")
-        st.session_state[f"{key_prefix}_val"] = val
-        
-    with col_mic:
-        st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)
-        try:
-            audio = mic_recorder(start_prompt="🎙️", stop_prompt="⏹️", key=f"{key_prefix}_mic")
-        except Exception:
-            audio = None
-            
-        if audio:
-            pass
-            
-    return st.session_state[f"{key_prefix}_val"]
+    col_f1, col_f2 = st.columns([5, 1])
+    with col_f1:
+        val = st.text_input(label, value=value, key=f"{key_prefix}_txt")
+    with col_f2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        audio = mic_recorder(
+            start_prompt="🎤",
+            stop_prompt="⏹️",
+            key=f"{key_prefix}_mic"
+        )
+    if audio and "bytes" in audio:
+        st.toast(f"تم تسجيل الصوت بنجاح لـ: {label}", icon="🎙️")
+    return val
 
 # ==================== دوال الحسابات والنمو والزيارات ====================
 def calculate_birth_head_circumference(weight_kg, length_cm):
@@ -493,7 +487,8 @@ if menu == "سجل الحوامل":
         if f"p_{col}" not in st.session_state:
             st.session_state[f"p_{col}"] = today_str if col == "تاريخ_الزيارة" else ""
 
-    raw_id = st.text_input("الرقم القومى للزوجة", key="p_الرقم_القومى_للزوجة_input")
+    # حقل الرقم القومي للزوجة مع دعم الإدخال الصوتي واليدوي
+    raw_id = text_input_with_voice("الرقم القومى للزوجة", "p_nat_id_wife")
     clean_p_id = clean_digits(raw_id, 14)
     if clean_p_id:
         st.session_state["p_الرقم_القومى_للزوجة"] = clean_p_id
@@ -517,15 +512,18 @@ if menu == "سجل الحوامل":
             )
         else:
             if col_name == "الرقم_القومى_للزوج":
-                raw_husband_id = st.text_input(col_name.replace('_', ' '), key=f"p_{col_name}_raw")
+                raw_husband_id = text_input_with_voice(col_name.replace('_', ' '), f"p_husband_id")
                 clean_h_id = clean_digits(raw_husband_id, 14)
                 st.session_state[f"p_{col_name}"] = clean_h_id
                 if len(clean_h_id) == 14:
                     hb_date, _ = parse_national_id(clean_h_id)
                     if hb_date: st.session_state["p_تاريخ_ميلاد_الزوج"] = hb_date
             elif col_name == "رقم_الموبايل":
-                raw_mob = st.text_input(col_name.replace('_', ' '), key=f"p_{col_name}_raw")
+                raw_mob = text_input_with_voice(col_name.replace('_', ' '), f"p_mobile")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
+            elif col_name in ["اسم_الزوجة", "اسم_الزوج"]:
+                val_text = text_input_with_voice(col_name.replace('_', ' '), f"p_text_{col_name}")
+                st.session_state[f"p_{col_name}"] = val_text
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
             else:
@@ -561,7 +559,8 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", key="c_الرقم_القومى_للام_input")
+    # حقل الرقم القومي للأم للأطفال مع دعم الصوتي واليدوي
+    raw_nat_id_mom = text_input_with_voice("الرقم القومى للام (اختياري)", "c_nat_id_mom")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
@@ -668,12 +667,15 @@ elif menu == "سجل الأطفال":
             )
 
         else:
-            if col_name in ["الرقم_القومى_للام", "الرقم_القومى_للاب"]:
-                raw_val = st.text_input(col_name.replace('_', ' '), key=f"c_{col_name}_raw")
+            if col_name in ["الرقم_القومى_للاب"]:
+                raw_val = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
-                raw_val = st.text_input(col_name.replace('_', ' '), key=f"c_{col_name}_raw")
+                raw_val = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 11)
+            elif col_name in ["اسم_الام", "اسم_الاب", "اسم_الطفل"]:
+                val_text = text_input_with_voice(col_name.replace('_', ' '), f"c_text_{col_name}")
+                st.session_state[f"c_{col_name}"] = val_text
             elif col_name == "تاريخ_الميلاد_للطفل":
                 def_date = datetime.date.today()
                 if st.session_state.get(f"c_{col_name}"):
