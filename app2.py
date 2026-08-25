@@ -7,9 +7,15 @@ import streamlit as st
 from supabase import create_client, Client
 from streamlit_mic_recorder import mic_recorder
 
-# ==================== إعدادات Supabase ====================
-SUPABASE_URL ="https://yrbkerayycejpjsnmusk.supabase.co"
-SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
+# ==================== إعدادات Supabase (الآمنة عبر Secrets) ====================
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except Exception:
+    # قيم افتراضية احتياطية في حال التشغيل المحلي
+    SUPABASE_URL = "https://yrbkerayycejpjsnmusk.supabase.co"
+    SUPABASE_KEY = "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZlsP"
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==================== إعدادات الصفحة والتصميم ====================
