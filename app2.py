@@ -138,7 +138,7 @@ DROPDOWN_OPTIONS = {
     "حركة_الجنين": ["تم", "لم يتم"],
     "تغير_لون_الجلد": ["تم", "لم يتم"],
     "ارتداء_الملابس_الفضفاضة": ["تم", "لم يتم"],
-    "الاستعداد_للولادة": ["تم", "لم يتم"],
+    "الاستعداد_للولادة": ["علامات_الولادة", "مميزات_الولادة_الطبيعية", "الساعة_الذهبية_الأولى", "ملامسة_الجلد_للجلد", "البداية_المبكرة_للرضاعة", "الرضاعة_الطبيعية_المطلقة", "اهمية_المباعدة", "وسائل_تنظيم_الأسرة", "استخدام_وسيلة_بعد_الولادة", "التطور_العصبي_والنفسي"],
     "علامات_الولادة": ["تم", "لم يتم"],
     "مميزات_الولادة_الطبيعية": ["تم", "لم يتم"],
     "الساعة_الذهبية_الأولى": ["تم", "لم يتم"],
@@ -395,13 +395,31 @@ def parse_national_id(nat_id):
             century = 1900
             
         birth_year = century + year_digits
+        
+        # تصحيح مرن لأي قيم غير صحيحة للشهر أو اليوم لتجنب انهيار التطبيق
+        if month < 1: month = 1
+        if month > 12: month = 12
+        if day < 1: day = 1
+        if day > 31: day = 31
+
         try:
             birth_date = datetime.date(birth_year, month, day)
             today = datetime.date.today()
             age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
             return str(birth_date), str(age)
         except ValueError:
-            return "", ""
+            # معالجة الأيام الزائدة في بعض الشهور (مثل 31 في شهر فبراير) باختيار أقصى يوم متاح
+            try:
+                if month in [4, 6, 9, 11] and day > 30:
+                    day = 30
+                elif month == 2:
+                    day = 28
+                birth_date = datetime.date(birth_year, month, day)
+                today = datetime.date.today()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                return str(birth_date), str(age)
+            except:
+                return "", ""
     return "", ""
 
 # ==================== دالة جلب البيانات ====================
