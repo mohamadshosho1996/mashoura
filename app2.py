@@ -518,12 +518,13 @@ if menu == "سجل الحوامل":
             elif col_name == "رقم_الموبايل":
                 raw_mob = st.text_input(col_name.replace('_', ' '), key=f"p_{col_name}_raw")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
-            elif col_name in ["تاريخ_الميلاد", "السن"]:
+            elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 val_b = st.session_state.get(f"p_{col_name}", "")
-                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي ⚙️]", value=val_b, key=f"p_auto_{col_name}", disabled=True)
-            elif col_name == "تاريخ_ميلاد_الزوج":
-                val_hb = st.session_state.get(f"p_{col_name}", "")
-                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي ⚙️]", value=val_hb, key=f"p_auto_{col_name}", disabled=True)
+                st.session_state[f"p_{col_name}"] = st.text_input(
+                    f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
+                    value=val_b,
+                    key=f"p_text_{col_name}"
+                )
             else:
                 val_text = st.text_input(col_name.replace('_', ' '), key=f"p_text_{col_name}")
                 st.session_state[f"p_{col_name}"] = val_text
@@ -644,20 +645,19 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name in ["مقاس_راس_الطفل", "محيط_الرأس", "تخطيط_الزيارة"]:
-            st.text_input(
+            val_calc = st.session_state.get(f"c_{col_name}", "")
+            st.session_state[f"c_{col_name}"] = st.text_input(
                 f"{col_name.replace('_', ' ')} [حساب تلقائي ⚙️]",
-                value=st.session_state.get(f"c_{col_name}", ""),
-                key=f"c_auto_{col_name}",
-                disabled=True
+                value=val_calc,
+                key=f"c_text_{col_name}"
             )
 
         elif col_name == "تاريخ_ميلاد_للام":
             val_mb = st.session_state.get(f"c_{col_name}", "")
-            st.text_input(
+            st.session_state[f"c_{col_name}"] = st.text_input(
                 f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
                 value=val_mb,
-                key=f"c_auto_{col_name}",
-                disabled=True
+                key=f"c_text_{col_name}"
             )
 
         elif col_name == "النمو_الحركي":
