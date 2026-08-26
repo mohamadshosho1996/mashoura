@@ -521,7 +521,7 @@ if menu == "سجل الحوامل":
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 val_b = st.session_state.get(f"p_{col_name}", "")
                 st.session_state[f"p_{col_name}"] = st.text_input(
-                    f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
+                    f"{col_name.replace('_', ' ')} [تلقائي ⚙️ ويمكن التعديل]",
                     value=val_b,
                     key=f"p_text_{col_name}"
                 )
@@ -655,7 +655,7 @@ elif menu == "سجل الأطفال":
         elif col_name == "تاريخ_ميلاد_للام":
             val_mb = st.session_state.get(f"c_{col_name}", "")
             st.session_state[f"c_{col_name}"] = st.text_input(
-                f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
+                f"{col_name.replace('_', ' ')} [تلقائي ⚙️ ويمكن التعديل]",
                 value=val_mb,
                 key=f"c_text_{col_name}"
             )
@@ -785,8 +785,8 @@ elif menu == "استيراد البيانات (Excel/CSV)":
             
             st.write("معاينة البيانات المستوردة:", df_import.head())
             if st.button("رفع وحفظ البيانات في قاعدة البيانات"):
-                records_to_insert = df_import.to_dict(orient="records")
-                for rec in records_to_insert:
+                records_to_import = df_import.to_dict(orient="records")
+                for rec in records_to_import:
                     cleaned_rec = {str(k): (str(v) if pd.notna(v) else "") for k, v in rec.items()}
                     supabase.table(db_table_name).insert(cleaned_rec).execute()
                 st.success("تم رفع واستيراد البيانات بنجاح إلى Supabase! 🚀")
