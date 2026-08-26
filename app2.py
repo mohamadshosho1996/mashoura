@@ -655,7 +655,7 @@ elif menu == "سجل الأطفال":
         elif col_name == "تاريخ_ميلاد_للام":
             val_mb = st.session_state.get(f"c_{col_name}", "")
             st.session_state[f"c_{col_name}"] = st.text_input(
-                f"{col_name.replace('_', ' ')} [تلقائي ⚙️ ويمكن التعديل]",
+                f"{col_name.replace('_', ' ')} [تلقائي من الرقم القومي ⚙️ ويمكن التعديل]",
                 value=val_mb,
                 key=f"c_text_{col_name}"
             )
