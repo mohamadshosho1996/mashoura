@@ -6,15 +6,15 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
 
-# ==================== إعدادات Supabase (آمنة عبر Secrets) ====================
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", ""))
+# ==================== إعدادات Supabase الصحيحة ====================
+SUPABASE_URL = "https://yrbkerayycejpsjnmusk.supabase.co"
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "sb_publishable_5ympl-5sujP5Xbg7kun0xA__YeYZ..."))
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("⚠️ برجاء ضبط إعدادات الاتصال بـ Supabase (SUPABASE_URL و SUPABASE_KEY) في ملف الـ Secrets أو متغيرات البيئة.")
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    st.error(f"خطأ في الاتصال بقاعدة البيانات: {e}")
     st.stop()
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==================== إعدادات الصفحة والتصميم ====================
 st.set_page_config(
@@ -89,13 +89,6 @@ VISIT_SCHEDULE_OPTIONS = [
     "عمر سنتين ونصف", "عمر 3 سنين", "عمر 3 سنين ونصف", "عمر 4 سنين",
     "عمر 4 سنين ونصف", "عمر 5 سنين", "عمر 5 سنين ونصف", "عمر 6 سنين"
 ]
-
-VISIT_MONTHS_MAP = {
-    "الاسبوع الاول": 0.25, "عمر شهرين": 2, "عمر 4 شهور": 4, "عمر 6 شهور": 6,
-    "عمر 9 شهور": 9, "عمر 12 شهر": 12, "عمر 18 شهر": 18, "عمر سنتين": 24,
-    "عمر سنتين ونصف": 30, "عمر 3 سنين": 36, "عمر 3 سنين ونصف": 42, "عمر 4 سنين": 48,
-    "عمر 4 سنين ونصف": 54, "عمر 5 سنين": 60, "عمر 5 سنين ونصف": 66, "عمر 6 سنين": 72
-}
 
 DROPDOWN_OPTIONS = {
     "مستوى التعليم": ["امى", "يجيد القراءة", "مؤهل متوسط", "فوق متوسط", "مؤهل عالى"],
@@ -362,8 +355,6 @@ if menu == "سجل الحوامل":
         st.session_state["p_الرقم القومى"] = clean_p_id
         if len(clean_p_id) == 14:
             b_date, calc_age = parse_national_id(clean_p_id)
-            if b_date and not st.session_state.get("p_تاريخ اخر دورة شهرية"):
-                pass
             if calc_age:
                 st.session_state["p_العمر الحالى"] = calc_age
             fetch_auto_data_from_supabase("pregnant_records", "الرقم القومى", clean_p_id, "p")
