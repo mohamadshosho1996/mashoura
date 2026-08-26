@@ -207,6 +207,7 @@ CHILD_COLUMNS = [
     "التغذية الصحية للأم المرضعة", "كيفية التعرف على علامات الخطورة", "النمو والتطور الحركي",
     "التطور الإدراكي والمعرفي", "التطور اللغوي", "رسائل التربية الإيجابية", "الأنشطة التحفيزية",
     "التوعية عن التغذية التكميلية وسلامة الغذاء والتغذية السليمة", "إعطاء الجرعة اليومية من الحديد",
+    "أهمية إستخدام وسيلة تنظيم أسرة وأهمية المباعدة",
     "موقف إستخدام وسيلة تنظيم أسرة",
     "الحمل الجديد", "الخدمات الغير ملباه", "تحويل الى عيادة تنظيم الاسره", "تخطيط الزيارة القادمة"
 ]
@@ -611,12 +612,14 @@ elif menu == "سجل الأطفال":
     if st.button("💾 حفظ بيانات الطفل", use_container_width=True):
         final_child_data = {}
         for col in CHILD_COLUMNS:
-            if col == "تاريخ التسجيل":
-                final_child_data[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            elif col == "اسم المستخدم":
-                final_child_data[col] = st.session_state.name
+            # تنظيف اسم الحقل من أي مسافات زائدة لضمان التطابق التام مع قاعدة البيانات
+            clean_col_name = col.strip()
+            if clean_col_name == "تاريخ التسجيل":
+                final_child_data[clean_col_name] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            elif clean_col_name == "اسم المستخدم":
+                final_child_data[clean_col_name] = st.session_state.name
             else:
-                final_child_data[col] = st.session_state.get(f"c_{col}", "")
+                final_child_data[clean_col_name] = st.session_state.get(f"c_{col}", "")
 
         try:
             supabase.table("children_records").insert(final_child_data).execute()
