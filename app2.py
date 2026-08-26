@@ -521,7 +521,7 @@ if menu == "سجل الحوامل":
             elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
                 val_b = st.session_state.get(f"p_{col_name}", "")
                 st.session_state[f"p_{col_name}"] = st.text_input(
-                    f"{col_name.replace('_', ' ')} [تلقائي ⚙️ ويمكن التعديل]",
+                    f"{col_name.replace('_', ' ')} [تلقائي من الرقم القومي ⚙️ ويمكن التعديل]",
                     value=val_b,
                     key=f"p_text_{col_name}"
                 )
