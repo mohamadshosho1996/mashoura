@@ -479,15 +479,19 @@ if menu == "سجل الحوامل":
 
     raw_id = st.text_input("الرقم القومى للزوجة", key="p_الرقم_القومى_للزوجة_input")
     clean_p_id = clean_digits(raw_id, 14)
+    
     if clean_p_id:
         st.session_state["p_الرقم_القومى_للزوجة"] = clean_p_id
         if len(clean_p_id) == 14:
             b_date, age = parse_national_id(clean_p_id)
-            if b_date: st.session_state["p_تاريخ_الميلاد"] = b_date
-            if age: st.session_state["p_السن"] = age
+            if b_date: 
+                st.session_state["p_تاريخ_الميلاد"] = b_date
+            if age: 
+                st.session_state["p_السن"] = age
             fetch_auto_data_from_supabase("pregnant_records", "الرقم_القومى_للزوجة", clean_p_id, "p")
     else:
         if not raw_id:
+            st.session_state["p_الرقم_القومى_للزوجة"] = ""
             st.session_state["p_تاريخ_الميلاد"] = ""
             st.session_state["p_السن"] = ""
 
@@ -514,8 +518,12 @@ if menu == "سجل الحوامل":
             elif col_name == "رقم_الموبايل":
                 raw_mob = st.text_input(col_name.replace('_', ' '), key=f"p_{col_name}_raw")
                 st.session_state[f"p_{col_name}"] = clean_digits(raw_mob, 11)
-            elif col_name in ["تاريخ_الميلاد", "السن", "تاريخ_ميلاد_الزوج"]:
-                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي]", key=f"p_{col_name}")
+            elif col_name in ["تاريخ_الميلاد", "السن"]:
+                val_b = st.session_state.get(f"p_{col_name}", "")
+                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي ⚙️]", value=val_b, key=f"p_auto_{col_name}", disabled=True)
+            elif col_name == "تاريخ_ميلاد_الزوج":
+                val_hb = st.session_state.get(f"p_{col_name}", "")
+                st.text_input(f"{col_name.replace('_', ' ')} [تلقائي ⚙️]", value=val_hb, key=f"p_auto_{col_name}", disabled=True)
             else:
                 val_text = st.text_input(col_name.replace('_', ' '), key=f"p_text_{col_name}")
                 st.session_state[f"p_{col_name}"] = val_text
@@ -549,7 +557,6 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    # حقل الرقم القومي للأم مع التحديث الفوري لتاريخ الميلاد
     raw_nat_id_mom = st.text_input("الرقم القومى للام", key="c_الرقم_القومى_للام_input")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     
@@ -562,6 +569,7 @@ elif menu == "سجل الأطفال":
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
     else:
         if not raw_nat_id_mom:
+            st.session_state["c_الرقم_القومى_للام"] = ""
             st.session_state["c_تاريخ_ميلاد_للام"] = ""
 
     auto_birth_hc = calculate_birth_head_circumference(
@@ -644,9 +652,10 @@ elif menu == "سجل الأطفال":
             )
 
         elif col_name == "تاريخ_ميلاد_للام":
+            val_mb = st.session_state.get(f"c_{col_name}", "")
             st.text_input(
                 f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
-                value=st.session_state.get(f"c_{col_name}", ""),
+                value=val_mb,
                 key=f"c_auto_{col_name}",
                 disabled=True
             )
