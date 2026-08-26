@@ -555,13 +555,14 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
-    raw_nat_id_mom = st.text_input("الرقم القومى للام (اختياري)", key="c_الرقم_القومى_للام_input")
+    raw_nat_id_mom = st.text_input("الرقم القومى للام", key="c_الرقم_القومى_للام_input")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
         if len(clean_c_id) == 14:
             b_mom, _ = parse_national_id(clean_c_id)
-            if b_mom: st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
+            if b_mom: 
+                st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
 
     auto_birth_hc = calculate_birth_head_circumference(
@@ -643,6 +644,14 @@ elif menu == "سجل الأطفال":
                 disabled=True
             )
 
+        elif col_name == "تاريخ_ميلاد_للام":
+            st.text_input(
+                f"{col_name.replace('_', ' ')} [تلقائي ⚙️]",
+                value=st.session_state.get(f"c_{col_name}", ""),
+                key=f"c_auto_{col_name}",
+                disabled=True
+            )
+
         elif col_name == "النمو_الحركي":
             st.markdown(f"**{col_name.replace('_', ' ')} [تحديد آلي بناءً على القياسات ⚙️]**")
             opts = DROPDOWN_OPTIONS[col_name]
@@ -662,7 +671,7 @@ elif menu == "سجل الأطفال":
             )
 
         else:
-            if col_name in ["الرقم_القومى_للام", "الرقم_القومى_للاب"]:
+            if col_name in ["الرقم_القومى_للاب"]:
                 raw_val = st.text_input(col_name.replace('_', ' '), key=f"c_{col_name}_raw")
                 st.session_state[f"c_{col_name}"] = clean_digits(raw_val, 14)
             elif col_name in ["رقم_الموبايل_للام", "رقم_الموبايل_للاب"]:
