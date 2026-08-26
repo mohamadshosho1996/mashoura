@@ -496,10 +496,12 @@ if menu == "سجل الحوامل":
 
     st.text_input("الرقم القومى للزوجة", key="p_الرقم_القومى_للزوجة_input", on_change=on_pregnant_id_change)
     
-    # تحديث تلقائي فوري إن تم كتابة الـ 14 رقم مباشرة من الجلسة الحالية
     curr_input_val = clean_digits(st.session_state.get("p_الرقم_القومى_للزوجة_input", ""), 14)
-    if len(curr_input_val) == 14 and st.session_state.get("p_الرقم_القومى_للزوجة") != curr_input_val:
-        on_pregnant_id_change()
+    if len(curr_input_val) == 14 and (st.session_state.get("p_الرقم_القومى_للزوجة") != curr_input_val or not st.session_state.get("p_تاريخ_الميلاد")):
+        b_date, age = parse_national_id(curr_input_val)
+        st.session_state["p_الرقم_القومى_للزوجة"] = curr_input_val
+        if b_date: st.session_state["p_تاريخ_الميلاد"] = b_date
+        if age: st.session_state["p_السن"] = age
 
     for col_name in PREGNANT_COLUMNS:
         if col_name in ["تاريخ_التسجيل", "اسم_المستخدم", "الرقم_القومى_للزوجة"]:
@@ -580,10 +582,11 @@ elif menu == "سجل الأطفال":
 
     st.text_input("الرقم القومى للام", key="c_الرقم_القومى_للام_input", on_change=on_child_mom_id_change)
     
-    # تحديث تلقائي فوري إن تم كتابة الـ 14 رقم مباشرة
     curr_child_input_val = clean_digits(st.session_state.get("c_الرقم_القومى_للام_input", ""), 14)
-    if len(curr_child_input_val) == 14 and st.session_state.get("c_الرقم_القومى_للام") != curr_child_input_val:
-        on_child_mom_id_change()
+    if len(curr_child_input_val) == 14 and (st.session_state.get("c_الرقم_القومى_للام") != curr_child_input_val or not st.session_state.get("c_تاريخ_ميلاد_للام")):
+        b_mom, _ = parse_national_id(curr_child_input_val)
+        st.session_state["c_الرقم_القومى_للام"] = curr_child_input_val
+        if b_mom: st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
 
     auto_birth_hc = calculate_birth_head_circumference(
         st.session_state.get("c_وزن_الطفل"),
