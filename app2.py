@@ -562,8 +562,10 @@ elif menu == "سجل الأطفال":
         if f"c_{col}" not in st.session_state:
             st.session_state[f"c_{col}"] = today_str if col in ["تاريخ_الزيارة", "تاريخ_اول_زيارة"] else ""
 
+    # حقل الرقم القومي للأم مع التحليل والتحديث الفوري لتاريخ الميلاد
     raw_nat_id_mom = st.text_input("الرقم القومى للام", key="c_الرقم_القومى_للام_input")
     clean_c_id = clean_digits(raw_nat_id_mom, 14)
+    
     if clean_c_id:
         st.session_state["c_الرقم_القومى_للام"] = clean_c_id
         if len(clean_c_id) == 14:
@@ -571,6 +573,9 @@ elif menu == "سجل الأطفال":
             if b_mom: 
                 st.session_state["c_تاريخ_ميلاد_للام"] = b_mom
             fetch_auto_data_from_supabase("children_records", "الرقم_القومى_للام", clean_c_id, "c")
+    else:
+        if not raw_nat_id_mom:
+            st.session_state["c_تاريخ_ميلاد_للام"] = ""
 
     auto_birth_hc = calculate_birth_head_circumference(
         st.session_state.get("c_وزن_الطفل"),
