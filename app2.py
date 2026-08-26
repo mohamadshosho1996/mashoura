@@ -403,7 +403,15 @@ def parse_national_id(nat_id):
         year_digits = int(clean_id[1:3])
         month = int(clean_id[3:5])
         day = int(clean_id[5:7])
-        century = 2000 if century_code == 3 else 1900
+        
+        # تحديد القرن بناءً على أول رقم (2 للقرن العشرين 1900s، 3 للقرن الحادي والعشرين 2000s)
+        if century_code == 2:
+            century = 1900
+        elif century_code == 3:
+            century = 2000
+        else:
+            century = 1900  # قيمة افتراضية احتياطية
+            
         birth_year = century + year_digits
         try:
             birth_date = datetime.date(birth_year, month, day)
