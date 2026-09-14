@@ -5,3 +5,4 @@ matplotlib
 streamlit-mic-recorder
 gspread
 google-auth
+oauth2client
